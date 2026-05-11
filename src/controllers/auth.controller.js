@@ -125,8 +125,42 @@ async function bootstrapAdmin(req, res) {
   }
 }
 
+async function ensureDefaultAdmin() {
+  const username = process.env.DEFAULT_ADMIN_USERNAME;
+  const password = process.env.DEFAULT_ADMIN_PASSWORD;
+  const displayName = process.env.DEFAULT_ADMIN_DISPLAY_NAME || 'Administrator';
+
+  if (!username || !password) {
+    return;
+  }
+
+  await pool.query(
+    `
+      INSERT INTO capi_users (username, email, password_hash, display_name, role, status)
+      VALUES ($1, $2, $3, $4, 'admin', 'active')
+      ON CONFLICT (username)
+      DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        email = EXCLUDED.email,
+        display_name = EXCLUDED.display_name,
+        role = 'admin',
+        status = 'active',
+        updated_at = NOW()
+    `,
+    [
+      username.trim(),
+      `${username.trim()}@local.admin`,
+      hashPassword(password),
+      displayName,
+    ]
+  );
+
+  console.log(`Default admin user ready: ${username.trim()}`);
+}
+
 module.exports = {
   bootstrapAdmin,
+  ensureDefaultAdmin,
   login,
   me,
   sanitizeUser,

@@ -315,6 +315,14 @@ curl -X POST https://capi-log.example.com/v1/auth/bootstrap-admin \
   -d '{"username":"admin","password":"CHANGE_ADMIN_PASSWORD","display_name":"Admin"}'
 ```
 
+Or set these variables in `.env` and restart PM2; the server will create/update the admin account on startup:
+
+```env
+DEFAULT_ADMIN_USERNAME=admin
+DEFAULT_ADMIN_PASSWORD=CHANGE_ADMIN_PASSWORD
+DEFAULT_ADMIN_DISPLAY_NAME=Administrator
+```
+
 Dashboard users can then log in at:
 
 ```text

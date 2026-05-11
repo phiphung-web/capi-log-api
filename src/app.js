@@ -115,9 +115,15 @@ app.use((error, req, res, next) => {
 const port = process.env.APP_PORT || 4005;
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`CAPI Log API listening on port ${port}`);
-  });
+  authController.ensureDefaultAdmin()
+    .catch((error) => {
+      console.error('Default admin bootstrap skipped:', error);
+    })
+    .finally(() => {
+      app.listen(port, () => {
+        console.log(`CAPI Log API listening on port ${port}`);
+      });
+    });
 }
 
 module.exports = app;

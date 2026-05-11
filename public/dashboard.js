@@ -104,6 +104,12 @@ function renderOverview() {
   $('screenTitle').textContent = 'Overview';
   $('screenSubtitle').textContent = 'Executive summary for markets and products you can access.';
   content.innerHTML = `
+    <section class="workflow">
+      <article class="step-card"><span>1</span><strong>Markets</strong><p>Group traffic by business territory such as kh, id, vn.</p></article>
+      <article class="step-card"><span>2</span><strong>Products</strong><p>Manage each game build, category, owner, and operational status.</p></article>
+      <article class="step-card"><span>3</span><strong>Event Logs</strong><p>Inspect CAPI callbacks, attribution fields, Meta response, and transaction data.</p></article>
+      <article class="step-card"><span>4</span><strong>Analytics</strong><p>Compare today, previous period, and same weekday last week.</p></article>
+    </section>
     ${metrics([
       { label: 'Total events', value: summary.total },
       { label: 'Meta received', value: summary.received },
@@ -358,7 +364,9 @@ async function loadData() {
     state.logs = logs.data.length ? logs.data : demo.logs;
     state.demoMode = logs.data.length === 0;
     $('authState').textContent = `${me.data.role || 'token'} loaded.`;
-    document.querySelector('[data-screen="users"]').style.display = me.data.is_admin ? '' : 'none';
+    document.querySelectorAll('[data-admin-only="true"]').forEach((el) => {
+      el.style.display = me.data.is_admin ? '' : 'none';
+    });
     render();
   } catch (error) {
     $('authState').textContent = `Live load failed (${error.message}). Showing demo data.`;

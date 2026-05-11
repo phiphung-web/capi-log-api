@@ -1,10 +1,11 @@
 :root {
-  --bg: #f4f6f9;
+  --bg: #eef2f7;
   --panel: #fff;
   --text: #172033;
   --muted: #667085;
   --line: #d8dee8;
   --accent: #16697a;
+  --accent-soft: #e7f6f8;
   --good: #14745f;
   --bad: #b42318;
   --warn: #946200;
@@ -15,7 +16,9 @@ body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
-  background: var(--bg);
+  background:
+    radial-gradient(circle at top right, rgba(22, 105, 122, .12), transparent 32vw),
+    var(--bg);
   letter-spacing: 0;
 }
 button, input, select { font: inherit; }
@@ -41,11 +44,12 @@ input, select {
 }
 label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
 .app { display: grid; grid-template-columns: 288px minmax(0, 1fr); min-height: 100vh; }
-.sidebar { background: #101828; color: #f9fafb; padding: 22px 16px; }
+.sidebar { background: linear-gradient(180deg, #0f172a, #111827); color: #f9fafb; padding: 22px 16px; }
 .brand { display: flex; gap: 12px; align-items: center; margin-bottom: 22px; }
 .brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 8px; background: #d9f3f6; color: #145b68; font-weight: 900; }
 .brand span { display: block; color: #b8c2d3; font-size: 12px; margin-top: 3px; }
 .nav { display: grid; gap: 8px; margin-bottom: 18px; }
+.nav-label { color: #8fa0b8; font-size: 11px; font-weight: 900; text-transform: uppercase; margin: 8px 8px 0; }
 .nav button { background: transparent; color: #d8deea; border-color: transparent; text-align: left; padding: 0 12px; }
 .nav button.active, .nav button:hover { background: rgba(217, 243, 246, .12); color: #fff; border-color: rgba(217, 243, 246, .2); }
 .auth-box { border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 12px; background: rgba(255,255,255,.06); }
@@ -71,6 +75,34 @@ h1 { font-size: 28px; line-height: 1.15; }
 .panel-head { min-height: 54px; padding: 0 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .panel-head h2 { font-size: 16px; }
 .panel-body { padding: 16px; }
+.workflow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.step-card {
+  position: relative;
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.step-card span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 900;
+  margin-bottom: 12px;
+}
+.step-card strong { display: block; margin-bottom: 6px; }
+.step-card p { color: var(--muted); font-size: 13px; line-height: 1.45; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; }
 .filters { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
 .table-scroll { overflow: auto; }
@@ -99,9 +131,10 @@ pre { margin: 0; border-radius: 8px; padding: 12px; background: #0f172a; color: 
   .app { grid-template-columns: 1fr; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .split { grid-template-columns: 1fr; }
+  .workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .main { padding: 16px; }
   .topbar, .date-controls { display: grid; grid-template-columns: 1fr; }
-  .filters, .form-grid, .metrics { grid-template-columns: 1fr; }
+  .filters, .form-grid, .metrics, .workflow { grid-template-columns: 1fr; }
 }
