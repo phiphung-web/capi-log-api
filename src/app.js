@@ -4,6 +4,8 @@ const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const auth = require('./middleware/auth');
+const capiLogsController = require('./controllers/capiLogs.controller');
 const capiLogsRoutes = require('./routes/capiLogs.routes');
 
 const app = express();
@@ -21,6 +23,7 @@ app.get('/', (req, res) => {
     name: 'capi-log-api',
     status: 'ok',
     health: '/health',
+    products_endpoint: '/v1/products',
     log_endpoint: '/v1/capi/logs',
     product_log_endpoint: '/v1/products/:product_key/capi/logs',
   });
@@ -35,6 +38,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/v1/products', auth, capiLogsController.listProducts);
 app.use('/v1/capi/logs', capiLogsRoutes);
 app.use('/v1/products/:product_key/capi/logs', capiLogsRoutes);
 

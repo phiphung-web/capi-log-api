@@ -22,7 +22,6 @@ Edit `.env`:
 APP_PORT=4005
 NODE_ENV=development
 API_TOKEN=CHANGE_THIS_SECRET_TOKEN
-ALLOWED_PRODUCT_KEYS=lengbear777,casinoplus,wingdirect
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -222,7 +221,7 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
-`product_key` is accepted only when it matches `^[a-zA-Z0-9_-]{2,64}$`. If `ALLOWED_PRODUCT_KEYS` is set, only those comma-separated keys are accepted.
+`product_key` is read from the URL and stored exactly as sent. It must match `^[a-zA-Z0-9_-]{2,64}$`; new valid keys are accepted automatically and marked with `is_new_product_key: true` in the save response.
 
 Recommended body:
 
@@ -247,6 +246,13 @@ Recommended body:
 ```
 
 The API uses `UNIQUE (product_key, event_name, event_id)` and PostgreSQL UPSERT. Repeated callbacks for the same product event update the existing row instead of creating duplicates.
+
+List detected product keys:
+
+```bash
+curl https://capi-log.example.com/v1/products \
+  -H "Authorization: Bearer <API_TOKEN>"
+```
 
 ## 10. Server migration for product endpoints
 

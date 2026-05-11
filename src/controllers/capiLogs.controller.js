@@ -23,22 +23,9 @@ function getSourceBody(body) {
   };
 }
 
-function getAllowedProductKeys() {
-  return (process.env.ALLOWED_PRODUCT_KEYS || '')
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean);
-}
-
 function validateProductKey(productKey) {
   if (!/^[a-zA-Z0-9_-]{2,64}$/.test(productKey)) {
     return 'product_key must be 2-64 characters and contain only letters, numbers, underscores, or hyphens.';
-  }
-
-  const allowedProductKeys = getAllowedProductKeys();
-
-  if (allowedProductKeys.length > 0 && !allowedProductKeys.includes(productKey)) {
-    return 'product_key is not allowed.';
   }
 
   return null;
@@ -397,12 +384,27 @@ async function createLog(req, res) {
   ];
 
   try {
+    const existingProduct = await pool.query(
+      'SELECT 1 FROM capi_event_logs WHERE product_key = $1 LIMIT 1',
+      [values.product_key]
+    );
+    const isNewProductKey = existingProduct.rowCount === 0;
+
     const { rows } = await pool.query(sql, params);
+    const data = {
+      ...rows[0],
+      is_new_product_key: isNewProductKey,
+    };
+
+    if (isNewProductKey) {
+      data.notice = 'New product_key detected.';
+      console.warn(`New product_key detected: ${values.product_key}`);
+    }
 
     return res.status(201).json({
       success: true,
       message: 'CAPI log saved.',
-      data: rows[0],
+      data,
     });
   } catch (error) {
     console.error('Failed to save CAPI log:', error);
@@ -414,6 +416,40 @@ async function createLog(req, res) {
   }
 }
 
+async function listProducts(req, res) {
+  const sql = `
+    SELECT
+      product_key,
+      COUNT(*)::integer AS total_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
+      MIN(created_at) AS first_seen_at,
+      MAX(created_at) AS last_seen_at
+    FROM capi_event_logs
+    GROUP BY product_key
+    ORDER BY last_seen_at DESC
+  `;
+
+  try {
+    const { rows } = await pool.query(sql);
+
+    return res.json({
+      success: true,
+      message: 'Products listed.',
+      data: rows,
+    });
+  } catch (error) {
+    console.error('Failed to list products:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not list products.',
+    });
+  }
+}
+
 module.exports = {
   createLog,
+  listProducts,
 };
