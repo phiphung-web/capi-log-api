@@ -1,6 +1,7 @@
 import { $, content } from '../dom.mjs';
 import { state } from '../state.mjs';
 import { metrics, statusPill, table } from '../components.mjs';
+import { logPath } from '../router.mjs';
 import { setShell } from '../shell.mjs';
 import { esc, fromIsoDate } from '../utils.mjs';
 
@@ -68,7 +69,7 @@ export function renderLogs(ctx) {
       <tr>
         <td>${fromIsoDate(log.created_at)}<div class="muted">${new Date(log.created_at).toLocaleTimeString()}</div></td>
         <td>${esc(log.market_display_name || log.market_key)} / ${esc(log.product_display_name || log.product_key)}<div class="muted mono">${esc(log.market_key)} / ${esc(log.product_key)}</div></td>
-        <td><span class="link" data-log="${esc(log.id)}">${esc(log.event_name)}</span><div class="muted mono">${esc(log.event_id)}</div></td>
+        <td><span class="link" data-route="${esc(logPath(log.market_key, log.product_key, log.id))}">${esc(log.event_name)}</span><div class="muted mono">${esc(log.event_id)}</div></td>
         <td>${statusPill(log.meta_status)}</td>
         <td>${esc(log.username || log.user_id || '-')}<div class="muted mono">${esc(log.txn_id || '-')}</div></td>
         <td>${log.value ? `${Number(log.value).toFixed(2)} ${esc(log.currency || '')}` : '-'}</td>

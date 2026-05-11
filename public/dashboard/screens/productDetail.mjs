@@ -3,6 +3,7 @@ import { api } from '../api.mjs';
 import { state } from '../state.mjs';
 import { chartLegend, metrics, statusPill, table } from '../components.mjs';
 import { loadCompareChart } from '../chart.mjs';
+import { logPath, productLogsPath } from '../router.mjs';
 import { setShell } from '../shell.mjs';
 import { esc, fromIsoDate, summarize } from '../utils.mjs';
 
@@ -50,7 +51,7 @@ export function renderProductDetail(ctx) {
     ])}
     <div class="split">
       <section class="panel">
-        <div class="panel-head"><h2>Comparison</h2><span class="muted">Current / previous / last week</span></div>
+        <div class="panel-head"><h2>Comparison</h2><button data-route="${esc(productLogsPath(product.market_key, product.product_key))}">Open logs</button></div>
         <div class="panel-body">
           <canvas id="compareChart" class="chart"></canvas>
           ${chartLegend()}
@@ -74,7 +75,7 @@ export function renderProductDetail(ctx) {
     ${table(['Time', 'Event', 'Status', 'User / Txn', 'Value', 'Trace'], logs.map((log) => `
       <tr>
         <td>${fromIsoDate(log.created_at)}</td>
-        <td><span class="link" data-log="${esc(log.id)}">${esc(log.event_name)}</span><div class="muted mono">${esc(log.event_id)}</div></td>
+        <td><span class="link" data-route="${esc(logPath(log.market_key, log.product_key, log.id))}">${esc(log.event_name)}</span><div class="muted mono">${esc(log.event_id)}</div></td>
         <td>${statusPill(log.meta_status)}</td>
         <td>${esc(log.user_id || '-')}<div class="muted mono">${esc(log.txn_id || '-')}</div></td>
         <td>${log.value || '-'}</td>

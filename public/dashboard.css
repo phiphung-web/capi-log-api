@@ -540,6 +540,16 @@ tbody tr:hover { background: #eef9f7; }
   gap: 14px;
 }
 
+.login-page {
+  min-height: 58vh;
+  display: grid;
+  place-items: center;
+}
+
+.login-panel {
+  width: min(460px, 100%);
+}
+
 .kv {
   display: grid;
   gap: 8px;

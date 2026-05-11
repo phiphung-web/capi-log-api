@@ -25,7 +25,7 @@ export function renderOverview() {
     ])}
     <div class="split">
       <section class="panel">
-        <div class="panel-head"><h2>Market health</h2><button class="primary" data-go="markets">Open Markets</button></div>
+        <div class="panel-head"><h2>Market health</h2><button class="primary" data-route="/dashboard/markets">Open Markets</button></div>
         <div class="panel-body">${marketCards(state.markets)}</div>
       </section>
       <section class="panel">

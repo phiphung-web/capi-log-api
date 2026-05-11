@@ -23,13 +23,12 @@
         </div>
         <nav class="nav">
           <div class="nav-label">Operate</div>
-          <button data-screen="overview" class="active"><span>01</span>Overview</button>
-          <button data-screen="markets"><span>02</span>Markets</button>
-          <button data-screen="products"><span>03</span>Products</button>
-          <button data-screen="logs"><span>04</span>Logs</button>
-          <button data-screen="analytics"><span>05</span>Analytics</button>
+          <button data-route="/dashboard" data-nav="home" class="active"><span>01</span>Home</button>
+          <button data-route="/dashboard/markets" data-nav="markets"><span>02</span>Markets</button>
+          <button data-route="/dashboard/analytics" data-nav="analytics"><span>03</span>Analytics</button>
           <div class="nav-label" data-admin-only="true">Admin</div>
-          <button data-screen="users" data-admin-only="true"><span>06</span>Users</button>
+          <button data-route="/dashboard/admin" data-nav="admin" data-admin-only="true"><span>04</span>Admin</button>
+          <button data-route="/dashboard/admin/users" data-nav="users" data-admin-only="true"><span>05</span>Users</button>
         </nav>
         <div class="auth-box">
           <div class="auth-title">
@@ -91,6 +90,6 @@
       </div>
     </div>
 
-    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260511-flow-split"></script>
+    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260511-page-router"></script>
   </body>
 </html>

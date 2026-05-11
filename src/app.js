@@ -50,6 +50,10 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
 });
 
+app.get('/dashboard/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
+});
+
 app.post('/v1/auth/login', authController.login);
 app.get('/v1/auth/me', auth, authController.me);
 app.post('/v1/auth/bootstrap-admin', auth, auth.requireAdmin, authController.bootstrapAdmin);

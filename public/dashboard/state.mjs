@@ -9,6 +9,7 @@ export const state = {
   logs: [...demo.logs],
   selectedMarket: null,
   selectedProduct: null,
+  selectedLog: null,
   filters: {},
   demoMode: true,
 };

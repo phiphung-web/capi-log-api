@@ -1,10 +1,15 @@
 import { $ } from './dom.mjs';
 import { api } from './api.mjs';
+import { go, logPath, marketPath, productPath, routeFromLocation } from './router.mjs';
 import { setToken, state, useDemoData, useLiveData } from './state.mjs';
 import { showLogDetail } from './modal.mjs';
-import { toIsoDate, fromIsoDate } from './utils.mjs';
+import { fromIsoDate, toIsoDate } from './utils.mjs';
+import { renderAdmin } from './screens/admin.mjs';
 import { renderAnalytics } from './screens/analytics.mjs';
+import { renderLogDetail } from './screens/logDetail.mjs';
+import { renderLogin } from './screens/login.mjs';
 import { renderLogs } from './screens/logs.mjs';
+import { renderMarketDetail } from './screens/marketDetail.mjs';
 import { renderMarkets } from './screens/markets.mjs';
 import { renderOverview } from './screens/overview.mjs';
 import { renderProductDetail } from './screens/productDetail.mjs';
@@ -12,65 +17,107 @@ import { renderProducts } from './screens/products.mjs';
 import { renderUsers } from './screens/users.mjs';
 
 const renderers = {
-  overview: renderOverview,
+  home: renderOverview,
+  login: renderLogin,
   markets: renderMarkets,
-  products: renderProducts,
-  logs: renderLogs,
-  product: renderProductDetail,
+  marketDetail: renderMarketDetail,
+  marketProducts: renderProducts,
+  productDetail: renderProductDetail,
+  productLogs: renderLogs,
+  logDetail: renderLogDetail,
   analytics: renderAnalytics,
+  admin: renderAdmin,
   users: renderUsers,
+  notFound: renderOverview,
 };
 
 function context() {
   return {
     bindLinks,
     loadData,
+    login,
+    navigate: go,
     render,
     setScreen,
+    useDemo,
   };
 }
 
 function setScreen(screen, params = {}) {
-  state.screen = screen;
-  Object.assign(state, params);
+  if (screen === 'markets') return go('/dashboard/markets');
+  if (screen === 'products' && params.selectedMarket) return go(`/dashboard/markets/${encodeURIComponent(params.selectedMarket)}/products`);
+  if (screen === 'product' && params.selectedProduct) return go(productPath(params.selectedProduct.market_key, params.selectedProduct.product_key));
+  if (screen === 'logs' && params.selectedProduct) return go(`/dashboard/markets/${encodeURIComponent(params.selectedProduct.market_key)}/products/${encodeURIComponent(params.selectedProduct.product_key)}/logs`);
+  if (screen === 'analytics') return go('/dashboard/analytics');
+  if (screen === 'users') return go('/dashboard/admin/users');
+  return go('/dashboard');
+}
 
-  const activeScreen = screen === 'product' ? 'products' : screen;
+function syncStateFromRoute(route) {
+  state.screen = route.name;
+  state.selectedMarket = route.params?.marketKey || null;
+  state.selectedProduct = null;
+  state.selectedLog = null;
+
+  if (route.params?.marketKey && route.params?.productKey) {
+    state.selectedProduct = state.products.find((product) =>
+      product.market_key === route.params.marketKey && product.product_key === route.params.productKey
+    ) || {
+      market_key: route.params.marketKey,
+      product_key: route.params.productKey,
+      display_name: route.params.productKey,
+      status: 'unknown',
+    };
+  }
+
+  if (route.params?.logId) {
+    state.selectedLog = state.logs.find((log) =>
+      String(log.id) === String(route.params.logId) &&
+      log.market_key === route.params.marketKey &&
+      log.product_key === route.params.productKey
+    ) || null;
+  }
+}
+
+function setActiveNav(nav) {
   document.querySelectorAll('.nav button').forEach((button) => {
-    button.classList.toggle('active', button.dataset.screen === activeScreen);
+    button.classList.toggle('active', button.dataset.nav === nav);
   });
-
-  render();
 }
 
 function render() {
+  const route = routeFromLocation();
+  syncStateFromRoute(route);
+  setActiveNav(route.nav);
   document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
+  document.body.classList.toggle('login-route', route.name === 'login');
 
-  const renderer = renderers[state.screen] || renderOverview;
+  const renderer = renderers[route.name] || renderOverview;
   renderer(context());
   bindLinks();
 }
 
 function bindLinks() {
-  document.querySelectorAll('[data-go]').forEach((el) => {
-    el.onclick = () => setScreen(el.dataset.go);
+  document.querySelectorAll('[data-route]').forEach((el) => {
+    el.onclick = () => go(el.dataset.route);
   });
 
   document.querySelectorAll('[data-market]').forEach((el) => {
-    el.onclick = () => setScreen('products', { selectedMarket: el.dataset.market });
+    el.onclick = () => go(marketPath(el.dataset.market));
   });
 
   document.querySelectorAll('[data-product]').forEach((el) => {
     el.onclick = () => {
       const [marketKey, productKey] = el.dataset.product.split(':');
-      const product = state.products.find((item) => item.market_key === marketKey && item.product_key === productKey);
-      setScreen('product', { selectedProduct: product });
+      go(productPath(marketKey, productKey));
     };
   });
 
   document.querySelectorAll('[data-log]').forEach((el) => {
     el.onclick = () => {
       const log = state.logs.find((item) => Number(item.id) === Number(el.dataset.log));
-      showLogDetail(log);
+      if (!log) return showLogDetail(null);
+      go(logPath(log.market_key, log.product_key, log.id));
     };
   });
 }
@@ -113,9 +160,29 @@ async function loadData() {
   }
 }
 
+async function login(username, password) {
+  const payload = await api('/v1/auth/login', {
+    method: 'POST',
+    headers: {},
+    body: JSON.stringify({ username, password }),
+  });
+
+  setToken(payload.data.token);
+  $('tokenInput').value = state.token;
+  await loadData();
+  go('/dashboard');
+}
+
+function useDemo() {
+  setToken('');
+  useDemoData();
+  document.body.classList.remove('admin-auth');
+  go('/dashboard');
+}
+
 function bindShellActions() {
   document.querySelectorAll('.nav button').forEach((button) => {
-    button.onclick = () => setScreen(button.dataset.screen);
+    button.onclick = () => go(button.dataset.route);
   });
 
   $('saveToken').onclick = () => {
@@ -124,27 +191,10 @@ function bindShellActions() {
   };
 
   $('loginBtn').onclick = async () => {
-    const payload = await api('/v1/auth/login', {
-      method: 'POST',
-      headers: {},
-      body: JSON.stringify({
-        username: $('usernameInput').value,
-        password: $('passwordInput').value,
-      }),
-    });
-
-    setToken(payload.data.token);
-    $('tokenInput').value = state.token;
-    await loadData();
+    await login($('usernameInput').value, $('passwordInput').value);
   };
 
-  $('demoBtn').onclick = () => {
-    setToken('');
-    useDemoData();
-    document.body.classList.remove('admin-auth');
-    render();
-  };
-
+  $('demoBtn').onclick = useDemo;
   $('refreshBtn').onclick = loadData;
   $('closeModal').onclick = () => $('modal').classList.add('hidden');
 }
@@ -155,6 +205,8 @@ function boot() {
   $('dateFrom').value = fromIsoDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
 
   bindShellActions();
+  window.addEventListener('popstate', render);
+  window.addEventListener('dashboard:navigate', render);
   render();
   loadData();
 }
