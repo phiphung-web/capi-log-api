@@ -22,6 +22,7 @@ Edit `.env`:
 APP_PORT=4005
 NODE_ENV=development
 API_TOKEN=CHANGE_THIS_SECRET_TOKEN
+ALLOWED_PRODUCT_KEYS=lengbear777,casinoplus,wingdirect
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -220,6 +221,8 @@ Required headers:
 Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
+
+`product_key` is accepted only when it matches `^[a-zA-Z0-9_-]{2,64}$`. If `ALLOWED_PRODUCT_KEYS` is set, only those comma-separated keys are accepted.
 
 Recommended body:
 

@@ -23,6 +23,27 @@ function getSourceBody(body) {
   };
 }
 
+function getAllowedProductKeys() {
+  return (process.env.ALLOWED_PRODUCT_KEYS || '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+}
+
+function validateProductKey(productKey) {
+  if (!/^[a-zA-Z0-9_-]{2,64}$/.test(productKey)) {
+    return 'product_key must be 2-64 characters and contain only letters, numbers, underscores, or hyphens.';
+  }
+
+  const allowedProductKeys = getAllowedProductKeys();
+
+  if (allowedProductKeys.length > 0 && !allowedProductKeys.includes(productKey)) {
+    return 'product_key is not allowed.';
+  }
+
+  return null;
+}
+
 function pickAttribution(body, key) {
   if (body[key] !== undefined && body[key] !== null) {
     return body[key];
@@ -182,6 +203,15 @@ async function createLog(req, res) {
   const body = req.body || {};
   const sourceBody = getSourceBody(body);
   const productKey = req.params.product_key || sourceBody.product_key || 'default';
+  const productKeyError = validateProductKey(productKey);
+
+  if (productKeyError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [{ field: 'product_key', message: productKeyError }],
+    });
+  }
 
   if (!sourceBody.event_name) {
     return res.status(400).json({
