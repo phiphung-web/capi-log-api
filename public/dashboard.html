@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CAPI Log Dashboard</title>
+    <link rel="stylesheet" href="/dashboard-assets/dashboard.css">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">CL</div>
+          <div>
+            <div class="brand-title">CAPI Logs</div>
+            <div class="brand-subtitle">Meta callback monitor</div>
+          </div>
+        </div>
+
+        <div class="token-panel">
+          <label for="apiToken">API token</label>
+          <div class="token-row">
+            <input id="apiToken" type="password" autocomplete="off" placeholder="Bearer token">
+            <button id="saveToken" type="button" title="Save token">Save</button>
+          </div>
+          <button id="demoMode" type="button" class="secondary">Use demo data</button>
+        </div>
+
+        <nav class="nav-list" aria-label="Product filters">
+          <button class="nav-item active" type="button" data-product="all">
+            <span>All products</span>
+            <strong id="allCount">0</strong>
+          </button>
+          <div id="productNav"></div>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1>Event Reconciliation</h1>
+            <p id="dataState">Demo dataset loaded.</p>
+          </div>
+          <div class="top-actions">
+            <button id="refreshBtn" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section class="metrics" aria-label="Dashboard metrics">
+          <article class="metric">
+            <span>Total logs</span>
+            <strong id="metricTotal">0</strong>
+          </article>
+          <article class="metric">
+            <span>Meta received</span>
+            <strong id="metricReceived">0</strong>
+          </article>
+          <article class="metric">
+            <span>Error rate</span>
+            <strong id="metricErrorRate">0%</strong>
+          </article>
+          <article class="metric">
+            <span>Products</span>
+            <strong id="metricProducts">0</strong>
+          </article>
+        </section>
+
+        <section class="controls" aria-label="Filters">
+          <div class="control">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="all">All statuses</option>
+              <option value="received">Received</option>
+              <option value="error">Error</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="eventFilter">Event</label>
+            <select id="eventFilter">
+              <option value="all">All events</option>
+            </select>
+          </div>
+          <div class="control search-control">
+            <label for="searchInput">Search</label>
+            <input id="searchInput" type="search" placeholder="event_id, txn_id, user_id, fbtrace">
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <section class="table-wrap" aria-label="CAPI logs table">
+            <div class="section-header">
+              <h2>Latest callbacks</h2>
+              <span id="tableCount">0 rows</span>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Product</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>User / Txn</th>
+                    <th>Value</th>
+                    <th>Attribution</th>
+                  </tr>
+                </thead>
+                <tbody id="logsBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="detail-panel" aria-label="Selected log detail">
+            <div class="section-header">
+              <h2>Log detail</h2>
+              <span id="detailStatus">Select a row</span>
+            </div>
+            <div id="detailBody" class="detail-empty">Click a callback row to inspect payload, Meta response, and attribution fields.</div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script src="/dashboard-assets/dashboard.js"></script>
+  </body>
+</html>

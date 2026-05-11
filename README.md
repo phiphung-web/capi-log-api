@@ -70,6 +70,12 @@ Health check:
 curl http://localhost:4005/health
 ```
 
+Dashboard:
+
+```text
+http://localhost:4005/dashboard
+```
+
 ## 6. Test with curl
 
 Product-specific endpoint for partner callbacks:
@@ -252,6 +258,12 @@ List detected product keys:
 ```bash
 curl https://capi-log.example.com/v1/products \
   -H "Authorization: Bearer <API_TOKEN>"
+```
+
+Open the management dashboard:
+
+```text
+https://capi-log.example.com/dashboard
 ```
 
 ## 10. Server migration for product endpoints

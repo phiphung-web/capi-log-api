@@ -416,6 +416,122 @@ async function createLog(req, res) {
   }
 }
 
+async function listLogs(req, res) {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const filters = [];
+  const params = [];
+
+  function addFilter(sql, value) {
+    params.push(value);
+    filters.push(sql.replace('?', `$${params.length}`));
+  }
+
+  if (req.params.product_key) {
+    addFilter('product_key = ?', req.params.product_key);
+  } else if (req.query.product_key) {
+    addFilter('product_key = ?', req.query.product_key);
+  }
+
+  if (req.query.meta_status) {
+    addFilter('meta_status = ?', req.query.meta_status);
+  }
+
+  if (req.query.event_name) {
+    addFilter('event_name = ?', req.query.event_name);
+  }
+
+  if (req.query.search) {
+    params.push(`%${req.query.search}%`);
+    filters.push(`(
+      event_id ILIKE $${params.length}
+      OR txn_id ILIKE $${params.length}
+      OR user_id ILIKE $${params.length}
+      OR username ILIKE $${params.length}
+      OR fbtrace_id ILIKE $${params.length}
+      OR ref ILIKE $${params.length}
+      OR pub_id ILIKE $${params.length}
+    )`);
+  }
+
+  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+  const dataParams = [...params, limit, offset];
+  const countParams = params;
+
+  const dataSql = `
+    SELECT
+      id,
+      created_at,
+      received_at,
+      sent_at,
+      product_key,
+      pixel_id,
+      event_name,
+      event_time,
+      event_id,
+      user_id,
+      username,
+      txn_id,
+      ref,
+      pub_id,
+      platform,
+      channel,
+      value,
+      currency,
+      is_first_purchase,
+      total_purchase_count,
+      total_deposit_amount,
+      fbc,
+      fbp,
+      fbclid,
+      external_id,
+      client_ip_address,
+      client_user_agent,
+      event_source_url,
+      events_received,
+      fbtrace_id,
+      meta_status,
+      error_message,
+      meta_request_payload,
+      meta_response,
+      raw_payload,
+      metadata,
+      request_ip,
+      request_user_agent
+    FROM capi_event_logs
+    ${whereSql}
+    ORDER BY created_at DESC
+    LIMIT $${params.length + 1}
+    OFFSET $${params.length + 2}
+  `;
+  const countSql = `SELECT COUNT(*)::integer AS total FROM capi_event_logs ${whereSql}`;
+
+  try {
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataSql, dataParams),
+      pool.query(countSql, countParams),
+    ]);
+
+    return res.json({
+      success: true,
+      message: 'CAPI logs listed.',
+      data: dataResult.rows,
+      pagination: {
+        total: countResult.rows[0].total,
+        limit,
+        offset,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to list CAPI logs:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not list CAPI logs.',
+    });
+  }
+}
+
 async function listProducts(req, res) {
   const sql = `
     SELECT
@@ -451,5 +567,6 @@ async function listProducts(req, res) {
 
 module.exports = {
   createLog,
+  listLogs,
   listProducts,
 };

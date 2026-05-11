@@ -4,6 +4,7 @@ const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const auth = require('./middleware/auth');
 const capiLogsController = require('./controllers/capiLogs.controller');
 const capiLogsRoutes = require('./routes/capiLogs.routes');
@@ -16,6 +17,7 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '20mb' }));
+app.use('/dashboard-assets', express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/', (req, res) => {
   res.json({
@@ -36,6 +38,10 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
 });
 
 app.get('/v1/products', auth, capiLogsController.listProducts);
