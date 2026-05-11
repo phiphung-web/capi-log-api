@@ -1,5 +1,28 @@
 const pool = require('../db/pool');
 
+function getSourceBody(body) {
+  if (body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)) {
+    return {
+      ...body.metadata,
+      sent_at: body.sent_at || body.metadata.sent_at,
+      event_source_url: body.url || body.event_source_url || body.metadata.event_source_url,
+      meta_request_payload: body.request || body.meta_request_payload || body.metadata.meta_request_payload,
+      meta_response: body.response || body.meta_response || body.metadata.meta_response,
+      raw_payload: body,
+      metadata: body.metadata,
+    };
+  }
+
+  return {
+    ...body,
+    event_source_url: body.event_source_url || body.url || null,
+    meta_request_payload: body.meta_request_payload || body.request || null,
+    meta_response: body.meta_response || body.response || null,
+    raw_payload: body,
+    metadata: body.metadata || null,
+  };
+}
+
 function pickAttribution(body, key) {
   if (body[key] !== undefined && body[key] !== null) {
     return body[key];
@@ -157,56 +180,60 @@ async function createLog(req, res) {
   }
 
   const body = req.body || {};
+  const sourceBody = getSourceBody(body);
+  const productKey = req.params.product_key || sourceBody.product_key || 'default';
 
-  if (!body.event_name) {
+  if (!sourceBody.event_name) {
     return res.status(400).json({
       success: false,
       message: 'Validation error.',
-      errors: [{ field: 'event_name', message: 'event_name is required.' }],
+      errors: [{ field: 'event_name', message: 'event_name is required in root or metadata.' }],
     });
   }
 
-  if (!body.event_id) {
+  if (!sourceBody.event_id) {
     return res.status(400).json({
       success: false,
       message: 'Validation error.',
-      errors: [{ field: 'event_id', message: 'event_id is required.' }],
+      errors: [{ field: 'event_id', message: 'event_id is required in root or metadata.' }],
     });
   }
 
-  const metaResponse = body.meta_response || null;
+  const metaResponse = sourceBody.meta_response || null;
   const values = {
-    sent_at: body.sent_at || null,
-    pixel_id: body.pixel_id || null,
-    event_name: body.event_name,
-    event_time: toIntegerOrNull(body.event_time),
-    event_id: body.event_id,
-    user_id: body.user_id || null,
-    username: body.username || null,
-    txn_id: body.txn_id || null,
-    ref: body.ref || null,
-    pub_id: body.pub_id || null,
-    platform: body.platform || null,
-    channel: body.channel || null,
-    value: toNumberOrNull(body.value),
-    currency: body.currency || null,
-    is_first_purchase: toBooleanOrNull(body.is_first_purchase),
-    total_purchase_count: toIntegerOrNull(body.total_purchase_count),
-    total_deposit_amount: toNumberOrNull(body.total_deposit_amount),
-    fbc: pickAttribution(body, 'fbc'),
-    fbp: pickAttribution(body, 'fbp'),
-    fbclid: pickAttribution(body, 'fbclid'),
-    external_id: pickAttribution(body, 'external_id'),
-    client_ip_address: pickAttribution(body, 'client_ip_address'),
-    client_user_agent: pickAttribution(body, 'client_user_agent'),
-    event_source_url: body.event_source_url || null,
+    product_key: productKey,
+    sent_at: sourceBody.sent_at || null,
+    pixel_id: sourceBody.pixel_id || null,
+    event_name: sourceBody.event_name,
+    event_time: toIntegerOrNull(sourceBody.event_time),
+    event_id: sourceBody.event_id,
+    user_id: sourceBody.user_id || null,
+    username: sourceBody.username || null,
+    txn_id: sourceBody.txn_id || null,
+    ref: sourceBody.ref || null,
+    pub_id: sourceBody.pub_id || null,
+    platform: sourceBody.platform || null,
+    channel: sourceBody.channel || null,
+    value: toNumberOrNull(sourceBody.value),
+    currency: sourceBody.currency || null,
+    is_first_purchase: toBooleanOrNull(sourceBody.is_first_purchase),
+    total_purchase_count: toIntegerOrNull(sourceBody.total_purchase_count),
+    total_deposit_amount: toNumberOrNull(sourceBody.total_deposit_amount),
+    fbc: pickAttribution(sourceBody, 'fbc'),
+    fbp: pickAttribution(sourceBody, 'fbp'),
+    fbclid: pickAttribution(sourceBody, 'fbclid'),
+    external_id: pickAttribution(sourceBody, 'external_id'),
+    client_ip_address: pickAttribution(sourceBody, 'client_ip_address'),
+    client_user_agent: pickAttribution(sourceBody, 'client_user_agent'),
+    event_source_url: sourceBody.event_source_url || null,
     events_received: toIntegerOrNull(metaResponse && metaResponse.events_received),
     fbtrace_id: metaResponse && metaResponse.fbtrace_id ? metaResponse.fbtrace_id : null,
     meta_status: getMetaStatus(metaResponse),
     error_message: getErrorMessage(metaResponse),
-    meta_request_payload: body.meta_request_payload || null,
+    meta_request_payload: sourceBody.meta_request_payload || null,
     meta_response: metaResponse,
-    raw_payload: body,
+    raw_payload: sourceBody.raw_payload,
+    metadata: sourceBody.metadata,
     request_ip: getRequestIp(req),
     request_user_agent: req.get('user-agent') || null,
   };
@@ -214,6 +241,7 @@ async function createLog(req, res) {
   const sql = `
     INSERT INTO capi_event_logs (
       sent_at,
+      product_key,
       pixel_id,
       event_name,
       event_time,
@@ -244,6 +272,7 @@ async function createLog(req, res) {
       meta_request_payload,
       meta_response,
       raw_payload,
+      metadata,
       request_ip,
       request_user_agent
     )
@@ -251,12 +280,13 @@ async function createLog(req, res) {
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
       $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-      $31, $32, $33
+      $31, $32, $33, $34, $35
     )
-    ON CONFLICT (pixel_id, event_name, event_id)
+    ON CONFLICT (product_key, event_name, event_id)
     DO UPDATE SET
       received_at = NOW(),
       sent_at = EXCLUDED.sent_at,
+      pixel_id = EXCLUDED.pixel_id,
       event_time = EXCLUDED.event_time,
       user_id = EXCLUDED.user_id,
       username = EXCLUDED.username,
@@ -284,11 +314,13 @@ async function createLog(req, res) {
       meta_request_payload = EXCLUDED.meta_request_payload,
       meta_response = EXCLUDED.meta_response,
       raw_payload = EXCLUDED.raw_payload,
+      metadata = EXCLUDED.metadata,
       request_ip = EXCLUDED.request_ip,
       request_user_agent = EXCLUDED.request_user_agent
     RETURNING
       id,
       created_at,
+      product_key,
       event_name,
       event_id,
       meta_status,
@@ -298,6 +330,7 @@ async function createLog(req, res) {
 
   const params = [
     values.sent_at,
+    values.product_key,
     values.pixel_id,
     values.event_name,
     values.event_time,
@@ -328,6 +361,7 @@ async function createLog(req, res) {
     values.meta_request_payload,
     values.meta_response,
     values.raw_payload,
+    values.metadata,
     values.request_ip,
     values.request_user_agent,
   ];

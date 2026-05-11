@@ -72,11 +72,39 @@ curl http://localhost:4005/health
 
 ## 6. Test with curl
 
+Product-specific endpoint for partner callbacks:
+
+```text
+POST /v1/products/:product_key/capi/logs
+```
+
+Legacy endpoint still works:
+
+```text
+POST /v1/capi/logs
+```
+
 ```bash
-curl -X POST http://localhost:4005/v1/capi/logs \
+curl -X POST http://localhost:4005/v1/products/lengbear777/capi/logs \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer CHANGE_THIS_SECRET_TOKEN" \
   -d '{
+    "url": "https://landing-demo.com/?fbclid=test",
+    "request": {
+      "data": [
+        {
+          "event_name": "Purchase",
+          "event_time": 1775754136,
+          "event_id": "purchase_60924493165"
+        }
+      ]
+    },
+    "response": {
+      "events_received": 1,
+      "messages": [],
+      "fbtrace_id": "TEST_FBTRACE_ID"
+    },
+    "metadata": {
     "pixel_id": "1178548207737198",
     "event_name": "Purchase",
     "event_time": 1775754136,
@@ -100,21 +128,7 @@ curl -X POST http://localhost:4005/v1/capi/logs \
       "external_id": "sha256_user_id",
       "client_ip_address": "182.2.181.1",
       "client_user_agent": "Mozilla/5.0 Android"
-    },
-    "event_source_url": "https://landing-demo.com/?fbclid=test",
-    "meta_request_payload": {
-      "data": [
-        {
-          "event_name": "Purchase",
-          "event_time": 1775754136,
-          "event_id": "purchase_60924493165"
-        }
-      ]
-    },
-    "meta_response": {
-      "events_received": 1,
-      "messages": [],
-      "fbtrace_id": "TEST_FBTRACE_ID"
+    }
     },
     "sent_at": "2026-05-07T10:58:00+07:00"
   }'
@@ -129,6 +143,7 @@ Expected response:
   "data": {
     "id": 1,
     "created_at": "2026-05-07T04:00:00.000Z",
+    "product_key": "lengbear777",
     "event_name": "Purchase",
     "event_id": "purchase_60924493165",
     "meta_status": "received",
@@ -196,7 +211,7 @@ sudo systemctl reload nginx
 Send partner callbacks to:
 
 ```text
-POST https://capi-log.example.com/v1/capi/logs
+POST https://capi-log.example.com/v1/products/{product_key}/capi/logs
 ```
 
 Required headers:
@@ -206,4 +221,36 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
-The API uses `UNIQUE (pixel_id, event_name, event_id)` and PostgreSQL UPSERT. Repeated callbacks for the same event update the existing row instead of creating duplicates.
+Recommended body:
+
+```json
+{
+  "url": "https://landing-demo.com/?fbclid=test",
+  "request": {},
+  "response": {},
+  "metadata": {
+    "pixel_id": "1178548207737198",
+    "event_name": "Purchase",
+    "event_id": "purchase_60924493165",
+    "user_id": "1016124",
+    "txn_id": "60924493165",
+    "fbc": "fb.1.1775754000000.testfbclid",
+    "fbp": "fb.1.1775753000000.testfbp",
+    "fbclid": "testfbclid",
+    "external_id": "sha256_user_id"
+  },
+  "sent_at": "2026-05-07T10:58:00+07:00"
+}
+```
+
+The API uses `UNIQUE (product_key, event_name, event_id)` and PostgreSQL UPSERT. Repeated callbacks for the same product event update the existing row instead of creating duplicates.
+
+## 10. Server migration for product endpoints
+
+If the database was created before product-specific endpoints were added, run:
+
+```bash
+cd /var/www/capi-log-api
+psql -U capi_user -d capi_log -h localhost -f database/migrations/001_add_product_log_support.sql
+pm2 restart capi-log-api
+```

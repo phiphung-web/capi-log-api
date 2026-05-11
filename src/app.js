@@ -22,6 +22,7 @@ app.get('/', (req, res) => {
     status: 'ok',
     health: '/health',
     log_endpoint: '/v1/capi/logs',
+    product_log_endpoint: '/v1/products/:product_key/capi/logs',
   });
 });
 
@@ -35,6 +36,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/v1/capi/logs', capiLogsRoutes);
+app.use('/v1/products/:product_key/capi/logs', capiLogsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
