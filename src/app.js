@@ -6,8 +6,12 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const auth = require('./middleware/auth');
+const analyticsController = require('./controllers/analytics.controller');
+const authController = require('./controllers/auth.controller');
 const capiLogsController = require('./controllers/capiLogs.controller');
 const capiLogsRoutes = require('./routes/capiLogs.routes');
+const maintenanceController = require('./controllers/maintenance.controller');
+const usersController = require('./controllers/users.controller');
 
 const app = express();
 
@@ -46,13 +50,39 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
 });
 
+app.post('/v1/auth/login', authController.login);
+app.get('/v1/auth/me', auth, authController.me);
+app.post('/v1/auth/bootstrap-admin', auth, auth.requireAdmin, authController.bootstrapAdmin);
+app.get('/v1/admin/users', auth, auth.requireAdmin, usersController.listUsers);
+app.post('/v1/admin/users', auth, auth.requireAdmin, usersController.createUser);
+app.patch('/v1/admin/users/:id', auth, auth.requireAdmin, usersController.updateUser);
+app.put('/v1/admin/users/:id/access', auth, auth.requireAdmin, usersController.updateUserAccess);
+app.get('/v1/analytics/overview', auth, analyticsController.overview);
+app.get(
+  '/v1/analytics/markets/:market_key/products/:product_key/compare',
+  auth,
+  analyticsController.productCompare
+);
+app.post(
+  '/v1/admin/maintenance/aggregate-daily',
+  auth,
+  auth.requireAdmin,
+  maintenanceController.aggregateDailyMetrics
+);
+app.post(
+  '/v1/admin/maintenance/purge-raw-logs',
+  auth,
+  auth.requireAdmin,
+  maintenanceController.purgeRawLogs
+);
 app.get('/v1/products', auth, capiLogsController.listProducts);
 app.get('/v1/markets', auth, capiLogsController.listMarkets);
 app.get('/v1/markets/:market_key/products', auth, capiLogsController.listProducts);
-app.patch('/v1/admin/markets/:market_key', auth, capiLogsController.updateMarket);
+app.patch('/v1/admin/markets/:market_key', auth, auth.requireWrite, capiLogsController.updateMarket);
 app.patch(
   '/v1/admin/markets/:market_key/products/:product_key',
   auth,
+  auth.requireWrite,
   capiLogsController.updateProduct
 );
 app.use('/v1/capi/logs', capiLogsRoutes);

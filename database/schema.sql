@@ -120,3 +120,47 @@ CREATE INDEX IF NOT EXISTS idx_capi_products_status
 
 CREATE INDEX IF NOT EXISTS idx_capi_products_category
   ON capi_products (category);
+
+CREATE TABLE IF NOT EXISTS capi_users (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name TEXT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (role IN ('admin', 'manager', 'viewer')),
+  CHECK (status IN ('active', 'disabled'))
+);
+
+CREATE TABLE IF NOT EXISTS capi_user_market_access (
+  user_id BIGINT NOT NULL REFERENCES capi_users (id) ON DELETE CASCADE,
+  market_key TEXT NOT NULL REFERENCES capi_markets (market_key) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, market_key)
+);
+
+CREATE TABLE IF NOT EXISTS capi_user_product_access (
+  user_id BIGINT NOT NULL REFERENCES capi_users (id) ON DELETE CASCADE,
+  market_key TEXT NOT NULL,
+  product_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, market_key, product_key),
+  FOREIGN KEY (market_key, product_key) REFERENCES capi_products (market_key, product_key) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS capi_daily_product_metrics (
+  metric_date DATE NOT NULL,
+  market_key TEXT NOT NULL,
+  product_key TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  total_events INTEGER NOT NULL DEFAULT 0,
+  received_events INTEGER NOT NULL DEFAULT 0,
+  error_events INTEGER NOT NULL DEFAULT 0,
+  unknown_events INTEGER NOT NULL DEFAULT 0,
+  unique_users INTEGER NOT NULL DEFAULT 0,
+  total_value NUMERIC(18, 6) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (metric_date, market_key, product_key, event_name)
+);

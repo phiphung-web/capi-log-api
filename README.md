@@ -302,5 +302,21 @@ cd /var/www/capi-log-api
 psql -U capi_user -d capi_log -h localhost -f database/migrations/001_add_product_log_support.sql
 psql -U capi_user -d capi_log -h localhost -f database/migrations/002_add_market_support.sql
 psql -U capi_user -d capi_log -h localhost -f database/migrations/003_create_market_product_catalog.sql
+psql -U capi_user -d capi_log -h localhost -f database/migrations/004_add_auth_access_and_metrics.sql
 pm2 restart capi-log-api
+```
+
+Bootstrap the first admin user with the server API token:
+
+```bash
+curl -X POST https://capi-log.example.com/v1/auth/bootstrap-admin \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_TOKEN>" \
+  -d '{"email":"admin@example.com","password":"CHANGE_ADMIN_PASSWORD","display_name":"Admin"}'
+```
+
+Dashboard users can then log in at:
+
+```text
+https://capi-log.example.com/dashboard
 ```

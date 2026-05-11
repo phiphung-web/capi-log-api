@@ -31,6 +31,32 @@ function validateSegmentKey(field, value) {
   return null;
 }
 
+function addAccessFilter(req, filters, params, marketExpr, productExpr) {
+  if (!req.auth || req.auth.is_admin) {
+    return;
+  }
+
+  if (!req.auth.user || !req.auth.user.id) {
+    filters.push('1 = 0');
+    return;
+  }
+
+  params.push(req.auth.user.id);
+  const index = params.length;
+  filters.push(`(
+    ${marketExpr} IN (
+      SELECT market_key FROM capi_user_market_access WHERE user_id = $${index}
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM capi_user_product_access upa
+      WHERE upa.user_id = $${index}
+        AND upa.market_key = ${marketExpr}
+        AND upa.product_key = ${productExpr}
+    )
+  )`);
+}
+
 const CATALOG_STATUSES = new Set(['active', 'paused', 'archived']);
 
 function pickCatalogFields(body, allowedFields) {
@@ -527,6 +553,14 @@ async function listLogs(req, res) {
     addFilter('l.event_name = ?', req.query.event_name);
   }
 
+  if (req.query.date_from) {
+    addFilter('l.created_at >= ?::date', req.query.date_from);
+  }
+
+  if (req.query.date_to) {
+    addFilter("l.created_at < (?::date + INTERVAL '1 day')", req.query.date_to);
+  }
+
   if (req.query.search) {
     params.push(`%${req.query.search}%`);
     filters.push(`(
@@ -542,6 +576,8 @@ async function listLogs(req, res) {
       OR p.category ILIKE $${params.length}
     )`);
   }
+
+  addAccessFilter(req, filters, params, 'l.market_key', 'l.product_key');
 
   const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
   const dataParams = [...params, limit, offset];
@@ -607,7 +643,16 @@ async function listLogs(req, res) {
     LIMIT $${params.length + 1}
     OFFSET $${params.length + 2}
   `;
-  const countSql = `SELECT COUNT(*)::integer AS total FROM capi_event_logs l ${whereSql}`;
+  const countSql = `
+    SELECT COUNT(*)::integer AS total
+    FROM capi_event_logs l
+    LEFT JOIN capi_markets m
+      ON m.market_key = l.market_key
+    LEFT JOIN capi_products p
+      ON p.market_key = l.market_key
+      AND p.product_key = l.product_key
+    ${whereSql}
+  `;
 
   try {
     const [dataResult, countResult] = await Promise.all([
@@ -646,6 +691,8 @@ async function listProducts(req, res) {
     params.push(req.query.market_key);
     filters.push(`p.market_key = $${params.length}`);
   }
+
+  addAccessFilter(req, filters, params, 'p.market_key', 'p.product_key');
 
   const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
   const sql = `
@@ -702,6 +749,10 @@ async function listProducts(req, res) {
 }
 
 async function listMarkets(req, res) {
+  const filters = [];
+  const params = [];
+  addAccessFilter(req, filters, params, 'm.market_key', 'p.product_key');
+  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
   const sql = `
     WITH log_stats AS (
       SELECT
@@ -732,11 +783,27 @@ async function listMarkets(req, res) {
     FROM capi_markets m
     LEFT JOIN log_stats s
       ON s.market_key = m.market_key
+    LEFT JOIN capi_products p
+      ON p.market_key = m.market_key
+    ${whereSql}
+    GROUP BY
+      m.market_key,
+      m.display_name,
+      m.region,
+      m.status,
+      m.owner,
+      m.notes,
+      s.total_products,
+      s.total_logs,
+      s.received_logs,
+      s.error_logs,
+      s.unknown_logs,
+      s.latest_log_at
     ORDER BY last_seen_at DESC
   `;
 
   try {
-    const { rows } = await pool.query(sql);
+    const { rows } = await pool.query(sql, params);
 
     return res.json({
       success: true,
@@ -782,6 +849,17 @@ async function updateMarket(req, res) {
   }
 
   try {
+    if (!req.auth.is_admin) {
+      const access = await pool.query(
+        'SELECT 1 FROM capi_user_market_access WHERE user_id = $1 AND market_key = $2 LIMIT 1',
+        [req.auth.user.id, marketKey]
+      );
+
+      if (access.rowCount === 0) {
+        return res.status(403).json({ success: false, message: 'Forbidden.' });
+      }
+    }
+
     await pool.query(
       `
         INSERT INTO capi_markets (market_key)
@@ -862,6 +940,27 @@ async function updateProduct(req, res) {
   }
 
   try {
+    if (!req.auth.is_admin) {
+      const access = await pool.query(
+        `
+          SELECT 1
+          WHERE EXISTS (
+            SELECT 1 FROM capi_user_market_access
+            WHERE user_id = $1 AND market_key = $2
+          )
+          OR EXISTS (
+            SELECT 1 FROM capi_user_product_access
+            WHERE user_id = $1 AND market_key = $2 AND product_key = $3
+          )
+        `,
+        [req.auth.user.id, marketKey, productKey]
+      );
+
+      if (access.rowCount === 0) {
+        return res.status(403).json({ success: false, message: 'Forbidden.' });
+      }
+    }
+
     await pool.query(
       `
         INSERT INTO capi_markets (market_key)
