@@ -276,6 +276,7 @@ function filterLogs(logs) {
 }
 
 function render() {
+  document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
   if (state.screen === 'overview') renderOverview();
   if (state.screen === 'markets') renderMarkets();
   if (state.screen === 'products') renderProducts();
@@ -347,6 +348,8 @@ async function loadCompare(product) {
 async function loadData() {
   if (!state.token) {
     state.demoMode = true;
+    state.auth = null;
+    document.body.classList.remove('admin-auth');
     $('authState').textContent = 'Demo mode. Save token or login to load live data.';
     render();
     return;
@@ -364,12 +367,15 @@ async function loadData() {
     state.logs = logs.data.length ? logs.data : demo.logs;
     state.demoMode = logs.data.length === 0;
     $('authState').textContent = `${me.data.role || 'token'} loaded.`;
+    document.body.classList.toggle('admin-auth', Boolean(me.data.is_admin));
     document.querySelectorAll('[data-admin-only="true"]').forEach((el) => {
       el.style.display = me.data.is_admin ? '' : 'none';
     });
     render();
   } catch (error) {
     $('authState').textContent = `Live load failed (${error.message}). Showing demo data.`;
+    state.auth = null;
+    document.body.classList.remove('admin-auth');
     state.markets = [...demo.markets];
     state.products = [...demo.products];
     state.logs = [...demo.logs];
@@ -424,7 +430,16 @@ $('loginBtn').onclick = async () => {
   $('tokenInput').value = state.token;
   await loadData();
 };
-$('demoBtn').onclick = () => { localStorage.removeItem('capi_token'); state.token = ''; state.markets = demo.markets; state.products = demo.products; state.logs = demo.logs; render(); };
+$('demoBtn').onclick = () => {
+  localStorage.removeItem('capi_token');
+  state.token = '';
+  state.auth = null;
+  document.body.classList.remove('admin-auth');
+  state.markets = demo.markets;
+  state.products = demo.products;
+  state.logs = demo.logs;
+  render();
+};
 $('refreshBtn').onclick = loadData;
 $('closeModal').onclick = () => $('modal').classList.add('hidden');
 
