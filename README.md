@@ -78,7 +78,13 @@ http://localhost:4005/dashboard
 
 ## 6. Test with curl
 
-Product-specific endpoint for partner callbacks:
+Market and product-specific endpoint for partner callbacks:
+
+```text
+POST /v1/markets/:market_key/products/:product_key/capi/logs
+```
+
+Product-only endpoint still works and stores `market_key` as `global`:
 
 ```text
 POST /v1/products/:product_key/capi/logs
@@ -91,7 +97,7 @@ POST /v1/capi/logs
 ```
 
 ```bash
-curl -X POST http://localhost:4005/v1/products/lengbear777/capi/logs \
+curl -X POST http://localhost:4005/v1/markets/vn/products/lengbear777/capi/logs \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer CHANGE_THIS_SECRET_TOKEN" \
   -d '{
@@ -146,9 +152,10 @@ Expected response:
 {
   "success": true,
   "message": "CAPI log saved.",
-  "data": {
+    "data": {
     "id": 1,
     "created_at": "2026-05-07T04:00:00.000Z",
+    "market_key": "vn",
     "product_key": "lengbear777",
     "event_name": "Purchase",
     "event_id": "purchase_60924493165",
@@ -217,7 +224,7 @@ sudo systemctl reload nginx
 Send partner callbacks to:
 
 ```text
-POST https://capi-log.example.com/v1/products/{product_key}/capi/logs
+POST https://capi-log.example.com/v1/markets/{market_key}/products/{product_key}/capi/logs
 ```
 
 Required headers:
@@ -227,7 +234,7 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
-`product_key` is read from the URL and stored exactly as sent. It must match `^[a-zA-Z0-9_-]{2,64}$`; new valid keys are accepted automatically and marked with `is_new_product_key: true` in the save response.
+`market_key` and `product_key` are read from the URL and stored exactly as sent. Both must match `^[a-zA-Z0-9_-]{2,64}$`; new valid keys are accepted automatically and marked with `is_new_market_key` / `is_new_product_key` in the save response.
 
 Recommended body:
 
@@ -251,12 +258,18 @@ Recommended body:
 }
 ```
 
-The API uses `UNIQUE (product_key, event_name, event_id)` and PostgreSQL UPSERT. Repeated callbacks for the same product event update the existing row instead of creating duplicates.
+The API uses `UNIQUE (market_key, product_key, event_name, event_id)` and PostgreSQL UPSERT. Repeated callbacks for the same market/product event update the existing row instead of creating duplicates.
 
-List detected product keys:
+List detected markets and products:
 
 ```bash
+curl https://capi-log.example.com/v1/markets \
+  -H "Authorization: Bearer <API_TOKEN>"
+
 curl https://capi-log.example.com/v1/products \
+  -H "Authorization: Bearer <API_TOKEN>"
+
+curl https://capi-log.example.com/v1/markets/vn/products \
   -H "Authorization: Bearer <API_TOKEN>"
 ```
 
@@ -273,5 +286,6 @@ If the database was created before product-specific endpoints were added, run:
 ```bash
 cd /var/www/capi-log-api
 psql -U capi_user -d capi_log -h localhost -f database/migrations/001_add_product_log_support.sql
+psql -U capi_user -d capi_log -h localhost -f database/migrations/002_add_market_support.sql
 pm2 restart capi-log-api
 ```

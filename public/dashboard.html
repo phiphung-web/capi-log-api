@@ -26,9 +26,9 @@
           <button id="demoMode" type="button" class="secondary">Use demo data</button>
         </div>
 
-        <nav class="nav-list" aria-label="Product filters">
+        <nav class="nav-list" aria-label="Market and product filters">
           <button class="nav-item active" type="button" data-product="all">
-            <span>All products</span>
+            <span>All markets</span>
             <strong id="allCount">0</strong>
           </button>
           <div id="productNav"></div>
@@ -58,6 +58,10 @@
           <article class="metric">
             <span>Error rate</span>
             <strong id="metricErrorRate">0%</strong>
+          </article>
+          <article class="metric">
+            <span>Markets</span>
+            <strong id="metricMarkets">0</strong>
           </article>
           <article class="metric">
             <span>Products</span>
@@ -98,7 +102,7 @@
                 <thead>
                   <tr>
                     <th>Time</th>
-                    <th>Product</th>
+                    <th>Market / Product</th>
                     <th>Event</th>
                     <th>Status</th>
                     <th>User / Txn</th>

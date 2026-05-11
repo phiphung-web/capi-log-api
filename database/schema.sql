@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS capi_event_logs (
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   sent_at TEXT NULL,
 
+  market_key TEXT NOT NULL DEFAULT 'global',
   product_key TEXT NOT NULL DEFAULT 'default',
   pixel_id TEXT NULL,
   event_name TEXT NOT NULL,
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS capi_event_logs (
   request_ip TEXT NULL,
   request_user_agent TEXT NULL,
 
-  UNIQUE (product_key, event_name, event_id)
+  UNIQUE (market_key, product_key, event_name, event_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_capi_event_logs_created_at
@@ -55,8 +56,14 @@ CREATE INDEX IF NOT EXISTS idx_capi_event_logs_created_at
 CREATE INDEX IF NOT EXISTS idx_capi_event_logs_event_name
   ON capi_event_logs (event_name);
 
+CREATE INDEX IF NOT EXISTS idx_capi_event_logs_market_key
+  ON capi_event_logs (market_key);
+
 CREATE INDEX IF NOT EXISTS idx_capi_event_logs_product_key
   ON capi_event_logs (product_key);
+
+CREATE INDEX IF NOT EXISTS idx_capi_event_logs_market_product
+  ON capi_event_logs (market_key, product_key);
 
 CREATE INDEX IF NOT EXISTS idx_capi_event_logs_user_id
   ON capi_event_logs (user_id);

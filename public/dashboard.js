@@ -2,6 +2,7 @@ const demoLogs = [
   {
     id: 101,
     created_at: '2026-05-11T04:53:32.294Z',
+    market_key: 'vn',
     product_key: 'lengbear777',
     pixel_id: '1178548207737198',
     event_name: 'Purchase',
@@ -28,6 +29,7 @@ const demoLogs = [
   {
     id: 102,
     created_at: '2026-05-11T04:44:12.100Z',
+    market_key: 'th',
     product_key: 'casinoplus',
     pixel_id: 'PX_CASINO_01',
     event_name: 'CompleteRegistration',
@@ -53,6 +55,7 @@ const demoLogs = [
   {
     id: 103,
     created_at: '2026-05-11T04:39:45.000Z',
+    market_key: 'id',
     product_key: 'wingdirect',
     pixel_id: 'PX_WING_77',
     event_name: 'Purchase',
@@ -79,6 +82,7 @@ const demoLogs = [
   {
     id: 104,
     created_at: '2026-05-11T04:31:20.700Z',
+    market_key: 'vn',
     product_key: 'newvipclub',
     pixel_id: 'PX_NEW_88',
     event_name: 'Lead',
@@ -104,6 +108,7 @@ const demoLogs = [
 ];
 
 let logs = [...demoLogs];
+let selectedMarket = 'all';
 let selectedProduct = 'all';
 let selectedLogId = null;
 let dataMode = 'demo';
@@ -122,6 +127,7 @@ const els = {
   metricTotal: document.getElementById('metricTotal'),
   metricReceived: document.getElementById('metricReceived'),
   metricErrorRate: document.getElementById('metricErrorRate'),
+  metricMarkets: document.getElementById('metricMarkets'),
   metricProducts: document.getElementById('metricProducts'),
   logsBody: document.getElementById('logsBody'),
   tableCount: document.getElementById('tableCount'),
@@ -171,7 +177,8 @@ function getFilteredLogs() {
   const search = els.searchInput.value.trim().toLowerCase();
 
   return logs.filter((log) => {
-    const productMatch = selectedProduct === 'all' || log.product_key === selectedProduct;
+    const marketMatch = selectedMarket === 'all' || (log.market_key || 'global') === selectedMarket;
+    const productMatch = selectedProduct === 'all' || `${log.market_key || 'global'}:${log.product_key}` === selectedProduct;
     const statusMatch = status === 'all' || log.meta_status === status;
     const eventMatch = eventName === 'all' || log.event_name === eventName;
     const searchTarget = [
@@ -187,31 +194,36 @@ function getFilteredLogs() {
       .join(' ')
       .toLowerCase();
     const searchMatch = !search || searchTarget.includes(search);
-    return productMatch && statusMatch && eventMatch && searchMatch;
+    return marketMatch && productMatch && statusMatch && eventMatch && searchMatch;
   });
 }
 
 function renderProducts() {
   const counts = logs.reduce((acc, log) => {
-    acc[log.product_key] = (acc[log.product_key] || 0) + 1;
+    const key = `${log.market_key || 'global'}:${log.product_key || 'default'}`;
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 
   els.allCount.textContent = logs.length;
   els.productNav.innerHTML = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .map(([product, count]) => `
-      <button class="nav-item ${selectedProduct === product ? 'active' : ''}" type="button" data-product="${escapeHtml(product)}">
-        <span>${escapeHtml(product)}</span>
+    .map(([key, count]) => {
+      const [market, product] = key.split(':');
+      return `
+      <button class="nav-item ${selectedProduct === key ? 'active' : ''}" type="button" data-product="${escapeHtml(key)}" data-market="${escapeHtml(market)}">
+        <span>${escapeHtml(market)} / ${escapeHtml(product)}</span>
         <strong>${count}</strong>
       </button>
-    `)
+    `;
+    })
     .join('');
 
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.classList.toggle('active', button.dataset.product === selectedProduct);
     button.onclick = () => {
       selectedProduct = button.dataset.product;
+      selectedMarket = button.dataset.market || 'all';
       render();
     };
   });
@@ -229,12 +241,14 @@ function renderEventFilter() {
 function renderMetrics(filteredLogs) {
   const received = filteredLogs.filter((log) => log.meta_status === 'received').length;
   const errors = filteredLogs.filter((log) => log.meta_status === 'error').length;
+  const markets = unique(filteredLogs.map((log) => log.market_key || 'global')).length;
   const products = unique(filteredLogs.map((log) => log.product_key)).length;
   const errorRate = filteredLogs.length ? Math.round((errors / filteredLogs.length) * 100) : 0;
 
   els.metricTotal.textContent = filteredLogs.length;
   els.metricReceived.textContent = received;
   els.metricErrorRate.textContent = `${errorRate}%`;
+  els.metricMarkets.textContent = markets;
   els.metricProducts.textContent = products;
 }
 
@@ -253,7 +267,7 @@ function renderTable(filteredLogs) {
         <div class="muted mono">${escapeHtml(log.fbtrace_id || '-')}</div>
       </td>
       <td>
-        <strong>${escapeHtml(log.product_key || '-')}</strong>
+        <strong>${escapeHtml(log.market_key || 'global')} / ${escapeHtml(log.product_key || '-')}</strong>
         <div class="muted">${escapeHtml(log.pub_id || log.ref || '-')}</div>
       </td>
       <td>
@@ -301,6 +315,7 @@ function renderDetail(filteredLogs) {
   }, null, 2);
   els.detailBody.innerHTML = `
     <div class="detail-grid">
+      <div class="detail-field"><span>Market</span><strong>${escapeHtml(selected.market_key || 'global')}</strong></div>
       <div class="detail-field"><span>Product</span><strong>${escapeHtml(selected.product_key || '-')}</strong></div>
       <div class="detail-field"><span>Pixel</span><strong>${escapeHtml(selected.pixel_id || '-')}</strong></div>
       <div class="detail-field"><span>Event ID</span><strong class="mono">${escapeHtml(selected.event_id || '-')}</strong></div>

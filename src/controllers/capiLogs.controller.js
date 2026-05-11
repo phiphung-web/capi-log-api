@@ -23,9 +23,9 @@ function getSourceBody(body) {
   };
 }
 
-function validateProductKey(productKey) {
-  if (!/^[a-zA-Z0-9_-]{2,64}$/.test(productKey)) {
-    return 'product_key must be 2-64 characters and contain only letters, numbers, underscores, or hyphens.';
+function validateSegmentKey(field, value) {
+  if (!/^[a-zA-Z0-9_-]{2,64}$/.test(value)) {
+    return `${field} must be 2-64 characters and contain only letters, numbers, underscores, or hyphens.`;
   }
 
   return null;
@@ -189,8 +189,18 @@ async function createLog(req, res) {
 
   const body = req.body || {};
   const sourceBody = getSourceBody(body);
+  const marketKey = req.params.market_key || sourceBody.market_key || 'global';
   const productKey = req.params.product_key || sourceBody.product_key || 'default';
-  const productKeyError = validateProductKey(productKey);
+  const marketKeyError = validateSegmentKey('market_key', marketKey);
+  const productKeyError = validateSegmentKey('product_key', productKey);
+
+  if (marketKeyError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [{ field: 'market_key', message: marketKeyError }],
+    });
+  }
 
   if (productKeyError) {
     return res.status(400).json({
@@ -218,6 +228,7 @@ async function createLog(req, res) {
 
   const metaResponse = sourceBody.meta_response || null;
   const values = {
+    market_key: marketKey,
     product_key: productKey,
     sent_at: sourceBody.sent_at || null,
     pixel_id: sourceBody.pixel_id || null,
@@ -258,6 +269,7 @@ async function createLog(req, res) {
   const sql = `
     INSERT INTO capi_event_logs (
       sent_at,
+      market_key,
       product_key,
       pixel_id,
       event_name,
@@ -297,9 +309,9 @@ async function createLog(req, res) {
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
       $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-      $31, $32, $33, $34, $35
+      $31, $32, $33, $34, $35, $36
     )
-    ON CONFLICT (product_key, event_name, event_id)
+    ON CONFLICT (market_key, product_key, event_name, event_id)
     DO UPDATE SET
       received_at = NOW(),
       sent_at = EXCLUDED.sent_at,
@@ -337,6 +349,7 @@ async function createLog(req, res) {
     RETURNING
       id,
       created_at,
+      market_key,
       product_key,
       event_name,
       event_id,
@@ -347,6 +360,7 @@ async function createLog(req, res) {
 
   const params = [
     values.sent_at,
+    values.market_key,
     values.product_key,
     values.pixel_id,
     values.event_name,
@@ -384,21 +398,34 @@ async function createLog(req, res) {
   ];
 
   try {
-    const existingProduct = await pool.query(
-      'SELECT 1 FROM capi_event_logs WHERE product_key = $1 LIMIT 1',
-      [values.product_key]
+    const existingMarket = await pool.query(
+      'SELECT 1 FROM capi_event_logs WHERE market_key = $1 LIMIT 1',
+      [values.market_key]
     );
+    const existingProduct = await pool.query(
+      'SELECT 1 FROM capi_event_logs WHERE market_key = $1 AND product_key = $2 LIMIT 1',
+      [values.market_key, values.product_key]
+    );
+    const isNewMarketKey = existingMarket.rowCount === 0;
     const isNewProductKey = existingProduct.rowCount === 0;
 
     const { rows } = await pool.query(sql, params);
     const data = {
       ...rows[0],
+      is_new_market_key: isNewMarketKey,
       is_new_product_key: isNewProductKey,
     };
 
+    if (isNewMarketKey) {
+      console.warn(`New market_key detected: ${values.market_key}`);
+    }
+
     if (isNewProductKey) {
-      data.notice = 'New product_key detected.';
-      console.warn(`New product_key detected: ${values.product_key}`);
+      console.warn(`New product_key detected: ${values.market_key}/${values.product_key}`);
+    }
+
+    if (isNewMarketKey || isNewProductKey) {
+      data.notice = 'New market/product key detected.';
     }
 
     return res.status(201).json({
@@ -433,6 +460,12 @@ async function listLogs(req, res) {
     addFilter('product_key = ?', req.query.product_key);
   }
 
+  if (req.params.market_key) {
+    addFilter('market_key = ?', req.params.market_key);
+  } else if (req.query.market_key) {
+    addFilter('market_key = ?', req.query.market_key);
+  }
+
   if (req.query.meta_status) {
     addFilter('meta_status = ?', req.query.meta_status);
   }
@@ -464,6 +497,7 @@ async function listLogs(req, res) {
       created_at,
       received_at,
       sent_at,
+      market_key,
       product_key,
       pixel_id,
       event_name,
@@ -533,8 +567,21 @@ async function listLogs(req, res) {
 }
 
 async function listProducts(req, res) {
+  const filters = [];
+  const params = [];
+
+  if (req.params.market_key) {
+    params.push(req.params.market_key);
+    filters.push(`market_key = $${params.length}`);
+  } else if (req.query.market_key) {
+    params.push(req.query.market_key);
+    filters.push(`market_key = $${params.length}`);
+  }
+
+  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
   const sql = `
     SELECT
+      market_key,
       product_key,
       COUNT(*)::integer AS total_logs,
       COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
@@ -543,12 +590,13 @@ async function listProducts(req, res) {
       MIN(created_at) AS first_seen_at,
       MAX(created_at) AS last_seen_at
     FROM capi_event_logs
-    GROUP BY product_key
+    ${whereSql}
+    GROUP BY market_key, product_key
     ORDER BY last_seen_at DESC
   `;
 
   try {
-    const { rows } = await pool.query(sql);
+    const { rows } = await pool.query(sql, params);
 
     return res.json({
       success: true,
@@ -565,8 +613,43 @@ async function listProducts(req, res) {
   }
 }
 
+async function listMarkets(req, res) {
+  const sql = `
+    SELECT
+      market_key,
+      COUNT(DISTINCT product_key)::integer AS total_products,
+      COUNT(*)::integer AS total_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
+      MIN(created_at) AS first_seen_at,
+      MAX(created_at) AS last_seen_at
+    FROM capi_event_logs
+    GROUP BY market_key
+    ORDER BY last_seen_at DESC
+  `;
+
+  try {
+    const { rows } = await pool.query(sql);
+
+    return res.json({
+      success: true,
+      message: 'Markets listed.',
+      data: rows,
+    });
+  } catch (error) {
+    console.error('Failed to list markets:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not list markets.',
+    });
+  }
+}
+
 module.exports = {
   createLog,
   listLogs,
+  listMarkets,
   listProducts,
 };
