@@ -251,7 +251,7 @@ function renderUsers() {
       <section class="panel"><div class="panel-head"><h2>Users</h2><button id="loadUsers" class="primary">Load</button></div><div id="usersTable" class="panel-body muted">Click Load.</div></section>
       <section class="panel"><div class="panel-head"><h2>Create user</h2></div><div class="panel-body">
         <div class="form-grid">
-          <input id="newEmail" placeholder="email">
+          <input id="newUsername" placeholder="username">
           <input id="newName" placeholder="display name">
           <input id="newPassword" placeholder="password">
           <select id="newRole"><option>viewer</option><option>manager</option><option>admin</option></select>
@@ -385,8 +385,8 @@ async function saveCatalog(product) {
 
 async function loadUsers() {
   const payload = await api('/v1/admin/users');
-  $('usersTable').innerHTML = table(['Email', 'Name', 'Role', 'Status', 'Markets', 'Products'], payload.data.map((u) => `
-    <tr><td>${esc(u.email)}</td><td>${esc(u.display_name || '-')}</td><td>${esc(u.role)}</td><td>${statusPill(u.status)}</td><td>${esc((u.markets || []).join(', '))}</td><td>${esc((u.products || []).map((p) => `${p.market_key}/${p.product_key}`).join(', '))}</td></tr>
+  $('usersTable').innerHTML = table(['Username', 'Name', 'Role', 'Status', 'Markets', 'Products'], payload.data.map((u) => `
+    <tr><td>${esc(u.username)}</td><td>${esc(u.display_name || '-')}</td><td>${esc(u.role)}</td><td>${statusPill(u.status)}</td><td>${esc((u.markets || []).join(', '))}</td><td>${esc((u.products || []).map((p) => `${p.market_key}/${p.product_key}`).join(', '))}</td></tr>
   `));
 }
 
@@ -394,7 +394,7 @@ async function createUser() {
   await api('/v1/admin/users', {
     method: 'POST',
     body: JSON.stringify({
-      email: $('newEmail').value,
+      username: $('newUsername').value,
       display_name: $('newName').value,
       password: $('newPassword').value,
       role: $('newRole').value,
@@ -409,7 +409,7 @@ $('loginBtn').onclick = async () => {
   const payload = await api('/v1/auth/login', {
     method: 'POST',
     headers: {},
-    body: JSON.stringify({ email: $('emailInput').value, password: $('passwordInput').value }),
+    body: JSON.stringify({ username: $('usernameInput').value, password: $('passwordInput').value }),
   });
   state.token = payload.data.token;
   localStorage.setItem('capi_token', state.token);

@@ -44,7 +44,7 @@ async function auth(req, res, next) {
 
   try {
     const { rows } = await pool.query(
-      'SELECT id, email, display_name, role, status FROM capi_users WHERE id = $1 LIMIT 1',
+      'SELECT id, username, email, display_name, role, status FROM capi_users WHERE id = $1 LIMIT 1',
       [payload.user_id]
     );
     const user = rows[0];

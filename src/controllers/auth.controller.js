@@ -5,6 +5,7 @@ function sanitizeUser(user) {
   if (!user) return null;
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     display_name: user.display_name,
     role: user.role,
@@ -13,19 +14,19 @@ function sanitizeUser(user) {
 }
 
 async function login(req, res) {
-  const { email, password } = req.body || {};
+  const { username, password } = req.body || {};
 
-  if (!email || !password) {
+  if (!username || !password) {
     return res.status(400).json({
       success: false,
-      message: 'email and password are required.',
+      message: 'username and password are required.',
     });
   }
 
   try {
     const { rows } = await pool.query(
-      'SELECT id, email, password_hash, display_name, role, status FROM capi_users WHERE email = $1 LIMIT 1',
-      [email.toLowerCase().trim()]
+      'SELECT id, username, email, password_hash, display_name, role, status FROM capi_users WHERE username = $1 LIMIT 1',
+      [username.trim()]
     );
     const user = rows[0];
 
@@ -68,12 +69,12 @@ async function me(req, res) {
 }
 
 async function bootstrapAdmin(req, res) {
-  const { email, password, display_name } = req.body || {};
+  const { username, password, display_name } = req.body || {};
 
-  if (!email || !password) {
+  if (!username || !password) {
     return res.status(400).json({
       success: false,
-      message: 'email and password are required.',
+      message: 'username and password are required.',
     });
   }
 
@@ -89,18 +90,24 @@ async function bootstrapAdmin(req, res) {
 
     const { rows } = await pool.query(
       `
-        INSERT INTO capi_users (email, password_hash, display_name, role, status)
-        VALUES ($1, $2, $3, 'admin', 'active')
-        ON CONFLICT (email)
+        INSERT INTO capi_users (username, email, password_hash, display_name, role, status)
+        VALUES ($1, $2, $3, $4, 'admin', 'active')
+        ON CONFLICT (username)
         DO UPDATE SET
           password_hash = EXCLUDED.password_hash,
+          email = EXCLUDED.email,
           display_name = EXCLUDED.display_name,
           role = 'admin',
           status = 'active',
           updated_at = NOW()
-        RETURNING id, email, display_name, role, status
+        RETURNING id, username, email, display_name, role, status
       `,
-      [email.toLowerCase().trim(), hashPassword(password), display_name || 'Administrator']
+      [
+        username.trim(),
+        `${username.trim()}@local.admin`,
+        hashPassword(password),
+        display_name || 'Administrator',
+      ]
     );
 
     return res.status(201).json({

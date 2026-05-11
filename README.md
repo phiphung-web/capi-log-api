@@ -312,7 +312,7 @@ Bootstrap the first admin user with the server API token:
 curl -X POST https://capi-log.example.com/v1/auth/bootstrap-admin \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_TOKEN>" \
-  -d '{"email":"admin@example.com","password":"CHANGE_ADMIN_PASSWORD","display_name":"Admin"}'
+  -d '{"username":"admin","password":"CHANGE_ADMIN_PASSWORD","display_name":"Admin"}'
 ```
 
 Dashboard users can then log in at:

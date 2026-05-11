@@ -11,6 +11,7 @@ async function listUsers(req, res) {
       `
         SELECT
           u.id,
+          u.username,
           u.email,
           u.display_name,
           u.role,
@@ -42,10 +43,10 @@ async function listUsers(req, res) {
 }
 
 async function createUser(req, res) {
-  const { email, password, display_name, role = 'viewer', status = 'active' } = req.body || {};
+  const { username, password, display_name, role = 'viewer', status = 'active' } = req.body || {};
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'email and password are required.' });
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'username and password are required.' });
   }
 
   if (!ROLES.has(role) || !STATUSES.has(status)) {
@@ -55,11 +56,18 @@ async function createUser(req, res) {
   try {
     const { rows } = await pool.query(
       `
-        INSERT INTO capi_users (email, password_hash, display_name, role, status)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email, display_name, role, status
+        INSERT INTO capi_users (username, email, password_hash, display_name, role, status)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, username, email, display_name, role, status
       `,
-      [email.toLowerCase().trim(), hashPassword(password), display_name || null, role, status]
+      [
+        username.trim(),
+        `${username.trim()}@local.user`,
+        hashPassword(password),
+        display_name || null,
+        role,
+        status,
+      ]
     );
 
     return res.status(201).json({
@@ -96,7 +104,7 @@ async function updateUser(req, res) {
           password_hash = COALESCE($5, password_hash),
           updated_at = NOW()
         WHERE id = $1
-        RETURNING id, email, display_name, role, status
+        RETURNING id, username, email, display_name, role, status
       `,
       [id, display_name, role, status, password ? hashPassword(password) : null]
     );
