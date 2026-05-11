@@ -31,6 +31,66 @@ function validateSegmentKey(field, value) {
   return null;
 }
 
+const CATALOG_STATUSES = new Set(['active', 'paused', 'archived']);
+
+function pickCatalogFields(body, allowedFields) {
+  const data = {};
+
+  allowedFields.forEach((field) => {
+    if (body[field] !== undefined) {
+      data[field] = body[field] === null || body[field] === '' ? null : String(body[field]).trim();
+    }
+  });
+
+  if (data.status && !CATALOG_STATUSES.has(data.status)) {
+    return {
+      error: 'status must be active, paused, or archived.',
+      data: null,
+    };
+  }
+
+  return { error: null, data };
+}
+
+async function syncCatalog(marketKey, productKey) {
+  const [existingMarket, existingProduct] = await Promise.all([
+    pool.query('SELECT 1 FROM capi_markets WHERE market_key = $1 LIMIT 1', [marketKey]),
+    pool.query(
+      'SELECT 1 FROM capi_products WHERE market_key = $1 AND product_key = $2 LIMIT 1',
+      [marketKey, productKey]
+    ),
+  ]);
+
+  await pool.query(
+    `
+      INSERT INTO capi_markets (market_key, first_seen_at, last_seen_at)
+      VALUES ($1, NOW(), NOW())
+      ON CONFLICT (market_key)
+      DO UPDATE SET
+        last_seen_at = NOW(),
+        updated_at = NOW()
+    `,
+    [marketKey]
+  );
+
+  await pool.query(
+    `
+      INSERT INTO capi_products (market_key, product_key, first_seen_at, last_seen_at)
+      VALUES ($1, $2, NOW(), NOW())
+      ON CONFLICT (market_key, product_key)
+      DO UPDATE SET
+        last_seen_at = NOW(),
+        updated_at = NOW()
+    `,
+    [marketKey, productKey]
+  );
+
+  return {
+    isNewMarketKey: existingMarket.rowCount === 0,
+    isNewProductKey: existingProduct.rowCount === 0,
+  };
+}
+
 function pickAttribution(body, key) {
   if (body[key] !== undefined && body[key] !== null) {
     return body[key];
@@ -398,17 +458,10 @@ async function createLog(req, res) {
   ];
 
   try {
-    const existingMarket = await pool.query(
-      'SELECT 1 FROM capi_event_logs WHERE market_key = $1 LIMIT 1',
-      [values.market_key]
+    const { isNewMarketKey, isNewProductKey } = await syncCatalog(
+      values.market_key,
+      values.product_key
     );
-    const existingProduct = await pool.query(
-      'SELECT 1 FROM capi_event_logs WHERE market_key = $1 AND product_key = $2 LIMIT 1',
-      [values.market_key, values.product_key]
-    );
-    const isNewMarketKey = existingMarket.rowCount === 0;
-    const isNewProductKey = existingProduct.rowCount === 0;
-
     const { rows } = await pool.query(sql, params);
     const data = {
       ...rows[0],
@@ -455,35 +508,38 @@ async function listLogs(req, res) {
   }
 
   if (req.params.product_key) {
-    addFilter('product_key = ?', req.params.product_key);
+    addFilter('l.product_key = ?', req.params.product_key);
   } else if (req.query.product_key) {
-    addFilter('product_key = ?', req.query.product_key);
+    addFilter('l.product_key = ?', req.query.product_key);
   }
 
   if (req.params.market_key) {
-    addFilter('market_key = ?', req.params.market_key);
+    addFilter('l.market_key = ?', req.params.market_key);
   } else if (req.query.market_key) {
-    addFilter('market_key = ?', req.query.market_key);
+    addFilter('l.market_key = ?', req.query.market_key);
   }
 
   if (req.query.meta_status) {
-    addFilter('meta_status = ?', req.query.meta_status);
+    addFilter('l.meta_status = ?', req.query.meta_status);
   }
 
   if (req.query.event_name) {
-    addFilter('event_name = ?', req.query.event_name);
+    addFilter('l.event_name = ?', req.query.event_name);
   }
 
   if (req.query.search) {
     params.push(`%${req.query.search}%`);
     filters.push(`(
-      event_id ILIKE $${params.length}
-      OR txn_id ILIKE $${params.length}
-      OR user_id ILIKE $${params.length}
-      OR username ILIKE $${params.length}
-      OR fbtrace_id ILIKE $${params.length}
-      OR ref ILIKE $${params.length}
-      OR pub_id ILIKE $${params.length}
+      l.event_id ILIKE $${params.length}
+      OR l.txn_id ILIKE $${params.length}
+      OR l.user_id ILIKE $${params.length}
+      OR l.username ILIKE $${params.length}
+      OR l.fbtrace_id ILIKE $${params.length}
+      OR l.ref ILIKE $${params.length}
+      OR l.pub_id ILIKE $${params.length}
+      OR m.display_name ILIKE $${params.length}
+      OR p.display_name ILIKE $${params.length}
+      OR p.category ILIKE $${params.length}
     )`);
   }
 
@@ -493,52 +549,65 @@ async function listLogs(req, res) {
 
   const dataSql = `
     SELECT
-      id,
-      created_at,
-      received_at,
-      sent_at,
-      market_key,
-      product_key,
-      pixel_id,
-      event_name,
-      event_time,
-      event_id,
-      user_id,
-      username,
-      txn_id,
-      ref,
-      pub_id,
-      platform,
-      channel,
-      value,
-      currency,
-      is_first_purchase,
-      total_purchase_count,
-      total_deposit_amount,
-      fbc,
-      fbp,
-      fbclid,
-      external_id,
-      client_ip_address,
-      client_user_agent,
-      event_source_url,
-      events_received,
-      fbtrace_id,
-      meta_status,
-      error_message,
-      meta_request_payload,
-      meta_response,
-      raw_payload,
-      metadata,
-      request_ip,
-      request_user_agent
-    FROM capi_event_logs
+      l.id,
+      l.created_at,
+      l.received_at,
+      l.sent_at,
+      l.market_key,
+      l.product_key,
+      l.pixel_id,
+      l.event_name,
+      l.event_time,
+      l.event_id,
+      l.user_id,
+      l.username,
+      l.txn_id,
+      l.ref,
+      l.pub_id,
+      l.platform,
+      l.channel,
+      l.value,
+      l.currency,
+      l.is_first_purchase,
+      l.total_purchase_count,
+      l.total_deposit_amount,
+      l.fbc,
+      l.fbp,
+      l.fbclid,
+      l.external_id,
+      l.client_ip_address,
+      l.client_user_agent,
+      l.event_source_url,
+      l.events_received,
+      l.fbtrace_id,
+      l.meta_status,
+      l.error_message,
+      l.meta_request_payload,
+      l.meta_response,
+      l.raw_payload,
+      l.metadata,
+      l.request_ip,
+      l.request_user_agent,
+      m.display_name AS market_display_name,
+      m.region AS market_region,
+      m.status AS market_status,
+      p.display_name AS product_display_name,
+      p.category AS product_category,
+      p.status AS product_status,
+      p.owner AS product_owner,
+      p.notes AS product_notes
+    FROM capi_event_logs l
+    LEFT JOIN capi_markets m
+      ON m.market_key = l.market_key
+    LEFT JOIN capi_products p
+      ON p.market_key = l.market_key
+      AND p.product_key = l.product_key
     ${whereSql}
-    ORDER BY created_at DESC
+    ORDER BY l.created_at DESC
     LIMIT $${params.length + 1}
     OFFSET $${params.length + 2}
   `;
-  const countSql = `SELECT COUNT(*)::integer AS total FROM capi_event_logs ${whereSql}`;
+  const countSql = `SELECT COUNT(*)::integer AS total FROM capi_event_logs l ${whereSql}`;
 
   try {
     const [dataResult, countResult] = await Promise.all([
@@ -572,26 +641,45 @@ async function listProducts(req, res) {
 
   if (req.params.market_key) {
     params.push(req.params.market_key);
-    filters.push(`market_key = $${params.length}`);
+    filters.push(`p.market_key = $${params.length}`);
   } else if (req.query.market_key) {
     params.push(req.query.market_key);
-    filters.push(`market_key = $${params.length}`);
+    filters.push(`p.market_key = $${params.length}`);
   }
 
   const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
   const sql = `
+    WITH log_stats AS (
+      SELECT
+        market_key,
+        product_key,
+        COUNT(*)::integer AS total_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
+        MAX(created_at) AS latest_log_at
+      FROM capi_event_logs
+      GROUP BY market_key, product_key
+    )
     SELECT
-      market_key,
-      product_key,
-      COUNT(*)::integer AS total_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
-      MIN(created_at) AS first_seen_at,
-      MAX(created_at) AS last_seen_at
-    FROM capi_event_logs
+      p.market_key,
+      p.product_key,
+      p.display_name,
+      p.category,
+      p.status,
+      p.owner,
+      p.notes,
+      COALESCE(s.total_logs, 0) AS total_logs,
+      COALESCE(s.received_logs, 0) AS received_logs,
+      COALESCE(s.error_logs, 0) AS error_logs,
+      COALESCE(s.unknown_logs, 0) AS unknown_logs,
+      p.first_seen_at,
+      GREATEST(p.last_seen_at, COALESCE(s.latest_log_at, p.last_seen_at)) AS last_seen_at
+    FROM capi_products p
+    LEFT JOIN log_stats s
+      ON s.market_key = p.market_key
+      AND s.product_key = p.product_key
     ${whereSql}
-    GROUP BY market_key, product_key
     ORDER BY last_seen_at DESC
   `;
 
@@ -615,17 +703,35 @@ async function listProducts(req, res) {
 
 async function listMarkets(req, res) {
   const sql = `
+    WITH log_stats AS (
+      SELECT
+        market_key,
+        COUNT(DISTINCT product_key)::integer AS total_products,
+        COUNT(*)::integer AS total_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
+        COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
+        MAX(created_at) AS latest_log_at
+      FROM capi_event_logs
+      GROUP BY market_key
+    )
     SELECT
-      market_key,
-      COUNT(DISTINCT product_key)::integer AS total_products,
-      COUNT(*)::integer AS total_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
-      COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
-      MIN(created_at) AS first_seen_at,
-      MAX(created_at) AS last_seen_at
-    FROM capi_event_logs
-    GROUP BY market_key
+      m.market_key,
+      m.display_name,
+      m.region,
+      m.status,
+      m.owner,
+      m.notes,
+      COALESCE(s.total_products, 0) AS total_products,
+      COALESCE(s.total_logs, 0) AS total_logs,
+      COALESCE(s.received_logs, 0) AS received_logs,
+      COALESCE(s.error_logs, 0) AS error_logs,
+      COALESCE(s.unknown_logs, 0) AS unknown_logs,
+      m.first_seen_at,
+      GREATEST(m.last_seen_at, COALESCE(s.latest_log_at, m.last_seen_at)) AS last_seen_at
+    FROM capi_markets m
+    LEFT JOIN log_stats s
+      ON s.market_key = m.market_key
     ORDER BY last_seen_at DESC
   `;
 
@@ -647,9 +753,178 @@ async function listMarkets(req, res) {
   }
 }
 
+async function updateMarket(req, res) {
+  const { market_key: marketKey } = req.params;
+  const marketKeyError = validateSegmentKey('market_key', marketKey);
+
+  if (marketKeyError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [{ field: 'market_key', message: marketKeyError }],
+    });
+  }
+
+  const { error, data } = pickCatalogFields(req.body || {}, [
+    'display_name',
+    'region',
+    'status',
+    'owner',
+    'notes',
+  ]);
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [{ field: 'status', message: error }],
+    });
+  }
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO capi_markets (market_key)
+        VALUES ($1)
+        ON CONFLICT (market_key) DO NOTHING
+      `,
+      [marketKey]
+    );
+
+    const { rows } = await pool.query(
+      `
+        UPDATE capi_markets
+        SET
+          display_name = COALESCE($2, display_name),
+          region = COALESCE($3, region),
+          status = COALESCE($4, status),
+          owner = COALESCE($5, owner),
+          notes = COALESCE($6, notes),
+          updated_at = NOW()
+        WHERE market_key = $1
+        RETURNING *
+      `,
+      [
+        marketKey,
+        data.display_name,
+        data.region,
+        data.status,
+        data.owner,
+        data.notes,
+      ]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Market updated.',
+      data: rows[0],
+    });
+  } catch (err) {
+    console.error('Failed to update market:', err);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not update market.',
+    });
+  }
+}
+
+async function updateProduct(req, res) {
+  const { market_key: marketKey, product_key: productKey } = req.params;
+  const marketKeyError = validateSegmentKey('market_key', marketKey);
+  const productKeyError = validateSegmentKey('product_key', productKey);
+
+  if (marketKeyError || productKeyError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [
+        marketKeyError ? { field: 'market_key', message: marketKeyError } : null,
+        productKeyError ? { field: 'product_key', message: productKeyError } : null,
+      ].filter(Boolean),
+    });
+  }
+
+  const { error, data } = pickCatalogFields(req.body || {}, [
+    'display_name',
+    'category',
+    'status',
+    'owner',
+    'notes',
+  ]);
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error.',
+      errors: [{ field: 'status', message: error }],
+    });
+  }
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO capi_markets (market_key)
+        VALUES ($1)
+        ON CONFLICT (market_key) DO NOTHING
+      `,
+      [marketKey]
+    );
+
+    await pool.query(
+      `
+        INSERT INTO capi_products (market_key, product_key)
+        VALUES ($1, $2)
+        ON CONFLICT (market_key, product_key) DO NOTHING
+      `,
+      [marketKey, productKey]
+    );
+
+    const { rows } = await pool.query(
+      `
+        UPDATE capi_products
+        SET
+          display_name = COALESCE($3, display_name),
+          category = COALESCE($4, category),
+          status = COALESCE($5, status),
+          owner = COALESCE($6, owner),
+          notes = COALESCE($7, notes),
+          updated_at = NOW()
+        WHERE market_key = $1
+          AND product_key = $2
+        RETURNING *
+      `,
+      [
+        marketKey,
+        productKey,
+        data.display_name,
+        data.category,
+        data.status,
+        data.owner,
+        data.notes,
+      ]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Product updated.',
+      data: rows[0],
+    });
+  } catch (err) {
+    console.error('Failed to update product:', err);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not update product.',
+    });
+  }
+}
+
 module.exports = {
   createLog,
   listLogs,
   listMarkets,
   listProducts,
+  updateMarket,
+  updateProduct,
 };

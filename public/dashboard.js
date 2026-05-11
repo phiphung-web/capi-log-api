@@ -3,7 +3,11 @@ const demoLogs = [
     id: 101,
     created_at: '2026-05-11T04:53:32.294Z',
     market_key: 'vn',
+    market_display_name: 'Vietnam',
     product_key: 'lengbear777',
+    product_display_name: 'Lengbear 777',
+    product_category: 'Casino',
+    product_status: 'active',
     pixel_id: '1178548207737198',
     event_name: 'Purchase',
     event_id: 'purchase_60924493165',
@@ -30,7 +34,11 @@ const demoLogs = [
     id: 102,
     created_at: '2026-05-11T04:44:12.100Z',
     market_key: 'th',
+    market_display_name: 'Thailand',
     product_key: 'casinoplus',
+    product_display_name: 'Casino Plus',
+    product_category: 'Web Casino',
+    product_status: 'active',
     pixel_id: 'PX_CASINO_01',
     event_name: 'CompleteRegistration',
     event_id: 'reg_882913',
@@ -56,7 +64,11 @@ const demoLogs = [
     id: 103,
     created_at: '2026-05-11T04:39:45.000Z',
     market_key: 'id',
+    market_display_name: 'Indonesia',
     product_key: 'wingdirect',
+    product_display_name: 'Wing Direct',
+    product_category: 'APK',
+    product_status: 'paused',
     pixel_id: 'PX_WING_77',
     event_name: 'Purchase',
     event_id: 'purchase_771200',
@@ -83,7 +95,11 @@ const demoLogs = [
     id: 104,
     created_at: '2026-05-11T04:31:20.700Z',
     market_key: 'vn',
+    market_display_name: 'Vietnam',
     product_key: 'newvipclub',
+    product_display_name: 'New VIP Club',
+    product_category: 'Lead Gen',
+    product_status: 'active',
     pixel_id: 'PX_NEW_88',
     event_name: 'Lead',
     event_id: 'lead_10002',
@@ -267,8 +283,8 @@ function renderTable(filteredLogs) {
         <div class="muted mono">${escapeHtml(log.fbtrace_id || '-')}</div>
       </td>
       <td>
-        <strong>${escapeHtml(log.market_key || 'global')} / ${escapeHtml(log.product_key || '-')}</strong>
-        <div class="muted">${escapeHtml(log.pub_id || log.ref || '-')}</div>
+        <strong>${escapeHtml(log.market_display_name || log.market_key || 'global')} / ${escapeHtml(log.product_display_name || log.product_key || '-')}</strong>
+        <div class="muted">${escapeHtml(log.product_category || log.pub_id || log.ref || '-')}</div>
       </td>
       <td>
         <strong>${escapeHtml(log.event_name || '-')}</strong>
@@ -317,14 +333,92 @@ function renderDetail(filteredLogs) {
     <div class="detail-grid">
       <div class="detail-field"><span>Market</span><strong>${escapeHtml(selected.market_key || 'global')}</strong></div>
       <div class="detail-field"><span>Product</span><strong>${escapeHtml(selected.product_key || '-')}</strong></div>
+      <div class="detail-field"><span>Product name</span><strong>${escapeHtml(selected.product_display_name || '-')}</strong></div>
+      <div class="detail-field"><span>Category / Status</span><strong>${escapeHtml(selected.product_category || '-')} / ${escapeHtml(selected.product_status || '-')}</strong></div>
       <div class="detail-field"><span>Pixel</span><strong>${escapeHtml(selected.pixel_id || '-')}</strong></div>
       <div class="detail-field"><span>Event ID</span><strong class="mono">${escapeHtml(selected.event_id || '-')}</strong></div>
       <div class="detail-field"><span>Transaction</span><strong class="mono">${escapeHtml(selected.txn_id || '-')}</strong></div>
       <div class="detail-field"><span>Client IP</span><strong>${escapeHtml(selected.client_ip_address || selected.request_ip || '-')}</strong></div>
       <div class="detail-field"><span>User Agent</span><strong>${escapeHtml(selected.client_user_agent || selected.request_user_agent || '-')}</strong></div>
     </div>
+    <div class="catalog-editor">
+      <div class="section-header compact">
+        <h2>Catalog admin</h2>
+        <span>${escapeHtml(selected.market_key || 'global')} / ${escapeHtml(selected.product_key || '-')}</span>
+      </div>
+      <div class="catalog-grid">
+        <div class="control">
+          <label for="catalogDisplayName">Display name</label>
+          <input id="catalogDisplayName" value="${escapeHtml(selected.product_display_name || '')}" placeholder="Product display name">
+        </div>
+        <div class="control">
+          <label for="catalogCategory">Category</label>
+          <input id="catalogCategory" value="${escapeHtml(selected.product_category || '')}" placeholder="Casino, APK, Sportsbook">
+        </div>
+        <div class="control">
+          <label for="catalogStatus">Status</label>
+          <select id="catalogStatus">
+            <option value="active" ${selected.product_status === 'active' ? 'selected' : ''}>active</option>
+            <option value="paused" ${selected.product_status === 'paused' ? 'selected' : ''}>paused</option>
+            <option value="archived" ${selected.product_status === 'archived' ? 'selected' : ''}>archived</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="catalogOwner">Owner</label>
+          <input id="catalogOwner" value="${escapeHtml(selected.product_owner || '')}" placeholder="Owner/team">
+        </div>
+      </div>
+      <label for="catalogNotes">Notes</label>
+      <input id="catalogNotes" value="${escapeHtml(selected.product_notes || '')}" placeholder="Internal notes">
+      <button id="saveCatalog" type="button">Save catalog</button>
+      <div id="catalogSaveState" class="muted"></div>
+    </div>
     <pre>${escapeHtml(detailJson)}</pre>
   `;
+
+  const saveButton = document.getElementById('saveCatalog');
+  if (saveButton) {
+    saveButton.onclick = () => saveSelectedCatalog(selected);
+  }
+}
+
+async function saveSelectedCatalog(selected) {
+  const token = getToken();
+  const state = document.getElementById('catalogSaveState');
+
+  if (!token) {
+    state.textContent = 'Save requires API token.';
+    return;
+  }
+
+  const body = {
+    display_name: document.getElementById('catalogDisplayName').value,
+    category: document.getElementById('catalogCategory').value,
+    status: document.getElementById('catalogStatus').value,
+    owner: document.getElementById('catalogOwner').value,
+    notes: document.getElementById('catalogNotes').value,
+  };
+
+  state.textContent = 'Saving...';
+  const response = await fetch(
+    `/v1/admin/markets/${encodeURIComponent(selected.market_key || 'global')}/products/${encodeURIComponent(selected.product_key)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    state.textContent = `Save failed: ${response.status}`;
+    return;
+  }
+
+  state.textContent = 'Saved.';
+  await loadRealData();
 }
 
 function render() {

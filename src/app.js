@@ -49,6 +49,12 @@ app.get('/dashboard', (req, res) => {
 app.get('/v1/products', auth, capiLogsController.listProducts);
 app.get('/v1/markets', auth, capiLogsController.listMarkets);
 app.get('/v1/markets/:market_key/products', auth, capiLogsController.listProducts);
+app.patch('/v1/admin/markets/:market_key', auth, capiLogsController.updateMarket);
+app.patch(
+  '/v1/admin/markets/:market_key/products/:product_key',
+  auth,
+  capiLogsController.updateProduct
+);
 app.use('/v1/capi/logs', capiLogsRoutes);
 app.use('/v1/products/:product_key/capi/logs', capiLogsRoutes);
 app.use('/v1/markets/:market_key/products/:product_key/capi/logs', capiLogsRoutes);

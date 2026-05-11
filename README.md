@@ -273,6 +273,20 @@ curl https://capi-log.example.com/v1/markets/vn/products \
   -H "Authorization: Bearer <API_TOKEN>"
 ```
 
+Update catalog metadata for admin/dashboard:
+
+```bash
+curl -X PATCH https://capi-log.example.com/v1/admin/markets/vn \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_TOKEN>" \
+  -d '{"display_name":"Vietnam","region":"SEA","status":"active","owner":"Ops Team","notes":"Primary VN market"}'
+
+curl -X PATCH https://capi-log.example.com/v1/admin/markets/vn/products/lengbear777 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_TOKEN>" \
+  -d '{"display_name":"Lengbear 777","category":"Casino","status":"active","owner":"Media Buyer A","notes":"APK + web funnels"}'
+```
+
 Open the management dashboard:
 
 ```text
@@ -287,5 +301,6 @@ If the database was created before product-specific endpoints were added, run:
 cd /var/www/capi-log-api
 psql -U capi_user -d capi_log -h localhost -f database/migrations/001_add_product_log_support.sql
 psql -U capi_user -d capi_log -h localhost -f database/migrations/002_add_market_support.sql
+psql -U capi_user -d capi_log -h localhost -f database/migrations/003_create_market_product_catalog.sql
 pm2 restart capi-log-api
 ```
