@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CAPI Log Platform</title>
-    <link rel="stylesheet" href="/dashboard-assets/dashboard.css?v=20260511-dashboard-shell">
+    <link rel="stylesheet" href="/dashboard-assets/dashboard.css?v=20260511-admin-ui">
   </head>
   <body>
     <div class="app">
@@ -12,29 +12,41 @@
         <div class="brand">
           <div class="brand-mark">CP</div>
           <div>
-            <strong>CAPI Platform</strong>
-            <span>Market -> Product -> Logs</span>
+            <strong>CAPI Log Platform</strong>
+            <span>Market / Product / Event logs</span>
           </div>
+        </div>
+        <div class="scope-card">
+          <span>Current workspace</span>
+          <strong>Internal attribution ops</strong>
+          <small id="shellMode">Demo mode</small>
         </div>
         <nav class="nav">
           <div class="nav-label">Operate</div>
-          <button data-screen="overview" class="active">Overview</button>
-          <button data-screen="markets">Markets</button>
-          <button data-screen="products">Products</button>
-          <button data-screen="logs">Logs</button>
+          <button data-screen="overview" class="active"><span>01</span>Overview</button>
+          <button data-screen="markets"><span>02</span>Markets</button>
+          <button data-screen="products"><span>03</span>Products</button>
+          <button data-screen="logs"><span>04</span>Logs</button>
+          <button data-screen="analytics"><span>05</span>Analytics</button>
           <div class="nav-label" data-admin-only="true">Admin</div>
-          <button data-screen="users" data-admin-only="true">Users</button>
+          <button data-screen="users" data-admin-only="true"><span>06</span>Users</button>
         </nav>
         <div class="auth-box">
+          <div class="auth-title">
+            <strong>Access</strong>
+            <small id="authBadge">Not signed in</small>
+          </div>
           <label>API/User token</label>
-          <input id="tokenInput" type="password" placeholder="Bearer token">
+          <input id="tokenInput" type="password" placeholder="Paste bearer token">
           <button id="saveToken">Use token</button>
           <div class="divider"></div>
           <label>Login</label>
           <input id="usernameInput" type="text" placeholder="username">
           <input id="passwordInput" type="password" placeholder="password">
-          <button id="loginBtn">Login</button>
-          <button id="demoBtn" class="ghost">Demo data</button>
+          <div class="auth-actions">
+            <button id="loginBtn">Login</button>
+            <button id="demoBtn" class="ghost">Demo</button>
+          </div>
           <p id="authState"></p>
         </div>
       </aside>
@@ -42,15 +54,28 @@
       <main class="main">
         <header class="topbar">
           <div>
+            <div class="breadcrumb" id="breadcrumb">Workspace / Overview</div>
             <h1 id="screenTitle">Overview</h1>
             <p id="screenSubtitle">Executive view across accessible markets and products.</p>
           </div>
           <div class="date-controls">
-            <input id="dateFrom" placeholder="dd-mm-yyyy">
-            <input id="dateTo" placeholder="dd-mm-yyyy">
+            <label>
+              <span>From</span>
+              <input id="dateFrom" placeholder="dd-mm-yyyy">
+            </label>
+            <label>
+              <span>To</span>
+              <input id="dateTo" placeholder="dd-mm-yyyy">
+            </label>
             <button id="refreshBtn">Refresh</button>
           </div>
         </header>
+
+        <section class="system-strip">
+          <div><span>Public endpoint</span><strong>POST /v1/markets/{market_key}/products/{product_key}/capi/logs</strong></div>
+          <div><span>Retention</span><strong>Raw detail 30 days</strong></div>
+          <div><span>Compare</span><strong>Today / Previous / Last week</strong></div>
+        </section>
 
         <section id="content"></section>
       </main>
@@ -66,6 +91,6 @@
       </div>
     </div>
 
-    <script src="/dashboard-assets/dashboard.js?v=20260511-dashboard-shell"></script>
+    <script src="/dashboard-assets/dashboard.js?v=20260511-admin-ui"></script>
   </body>
 </html>
