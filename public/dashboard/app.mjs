@@ -191,7 +191,13 @@ function bindShellActions() {
   };
 
   $('loginBtn').onclick = async () => {
-    await login($('usernameInput').value, $('passwordInput').value);
+    const username = $('usernameInput').value.trim();
+    const password = $('passwordInput').value;
+    if (!username || !password) {
+      go('/dashboard/login');
+      return;
+    }
+    await login(username, password);
   };
 
   $('demoBtn').onclick = useDemo;
