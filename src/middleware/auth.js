@@ -1,6 +1,15 @@
 const pool = require('../db/pool');
 const { verifyToken } = require('../utils/security');
 
+function unauthorized(res, errorCode, detail) {
+  return res.status(401).json({
+    success: false,
+    message: 'Unauthorized.',
+    error_code: errorCode,
+    detail,
+  });
+}
+
 async function auth(req, res, next) {
   const expectedToken = process.env.API_TOKEN;
 
@@ -13,13 +22,31 @@ async function auth(req, res, next) {
   }
 
   const authHeader = req.get('authorization') || '';
-  const [scheme, token] = authHeader.split(' ');
 
-  if (scheme !== 'Bearer' || !token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Unauthorized.',
-    });
+  if (!authHeader) {
+    return unauthorized(
+      res,
+      'AUTH_HEADER_MISSING',
+      'Missing Authorization header. Use Authorization: Bearer <API_TOKEN>.'
+    );
+  }
+
+  const [scheme, token, extra] = authHeader.split(' ');
+
+  if (scheme !== 'Bearer') {
+    return unauthorized(
+      res,
+      'AUTH_SCHEME_INVALID',
+      'Authorization scheme must be Bearer.'
+    );
+  }
+
+  if (!token || extra) {
+    return unauthorized(
+      res,
+      'AUTH_TOKEN_FORMAT_INVALID',
+      'Authorization header format must be: Bearer <token>.'
+    );
   }
 
   if (token === expectedToken) {
@@ -36,10 +63,11 @@ async function auth(req, res, next) {
   const payload = verifyToken(token);
 
   if (!payload || !payload.user_id) {
-    return res.status(401).json({
-      success: false,
-      message: 'Unauthorized.',
-    });
+    return unauthorized(
+      res,
+      'AUTH_TOKEN_INVALID',
+      'Token does not match API_TOKEN and is not a valid user session token.'
+    );
   }
 
   try {
@@ -50,10 +78,11 @@ async function auth(req, res, next) {
     const user = rows[0];
 
     if (!user || user.status !== 'active') {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized.',
-      });
+      return unauthorized(
+        res,
+        'AUTH_USER_INACTIVE',
+        'User token is valid but the user is missing or inactive.'
+      );
     }
 
     req.auth = {

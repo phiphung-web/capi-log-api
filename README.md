@@ -234,6 +234,16 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
+Authentication errors keep `message: "Unauthorized."` and include `error_code` for debugging:
+
+```text
+AUTH_HEADER_MISSING
+AUTH_SCHEME_INVALID
+AUTH_TOKEN_FORMAT_INVALID
+AUTH_TOKEN_INVALID
+AUTH_USER_INACTIVE
+```
+
 `market_key` and `product_key` are read from the URL and stored exactly as sent. Both must match `^[a-zA-Z0-9_-]{2,64}$`; new valid keys are accepted automatically and marked with `is_new_market_key` / `is_new_product_key` in the save response.
 
 Recommended body:
