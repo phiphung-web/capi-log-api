@@ -542,9 +542,19 @@ async function createLog(req, res) {
   } catch (error) {
     console.error('Failed to save CAPI log:', error);
 
+    if (error.code === '42P01') {
+      return res.status(500).json({
+        success: false,
+        message: 'Database schema is missing required tables.',
+        error_code: 'DB_SCHEMA_MISSING',
+        detail: 'Run database/schema.sql or the required migrations before sending logs.',
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Could not save CAPI log.',
+      error_code: 'LOG_SAVE_FAILED',
     });
   }
 }

@@ -234,12 +234,21 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
+If the sending service cannot set an `Authorization` header, it can send the same token with either header:
+
+```text
+X-API-Token: <API_TOKEN>
+X-API-Key: <API_TOKEN>
+```
+
 Authentication errors keep `message: "Unauthorized."` and include `error_code` for debugging:
 
 ```text
 AUTH_HEADER_MISSING
 AUTH_SCHEME_INVALID
+AUTH_TOKEN_MISSING
 AUTH_TOKEN_FORMAT_INVALID
+AUTH_TOKEN_CONFLICT
 AUTH_TOKEN_INVALID
 AUTH_USER_INACTIVE
 ```
