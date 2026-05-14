@@ -24,6 +24,8 @@ export function matchRoute(pathname) {
   if (parts.length === 0) return { name: 'home', nav: 'home', path };
   if (parts[0] === 'login') return { name: 'login', nav: 'login', path };
   if (parts[0] === 'analytics') return { name: 'analytics', nav: 'analytics', path };
+  if (parts[0] === 'products' && parts.length === 1) return { name: 'products', nav: 'products', path };
+  if (parts[0] === 'products' && parts[1] === 'compare') return { name: 'productsCompare', nav: 'products', path };
   if (parts[0] === 'admin' && parts[1] === 'users') return { name: 'users', nav: 'users', path };
   if (parts[0] === 'admin') return { name: 'admin', nav: 'admin', path };
 
@@ -76,6 +78,14 @@ export function productPath(marketKey, productKey) {
 
 export function productLogsPath(marketKey, productKey) {
   return `${productPath(marketKey, productKey)}/logs`;
+}
+
+export function productsPath() {
+  return `${BASE}/products`;
+}
+
+export function productsComparePath() {
+  return `${productsPath()}/compare`;
 }
 
 export function logPath(marketKey, productKey, logId) {

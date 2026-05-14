@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CAPI Log Platform</title>
-    <link rel="stylesheet" href="/dashboard-assets/dashboard.css?v=20260512-professional-layout">
+    <link rel="stylesheet" href="/dashboard-assets/dashboard.css?v=20260514-market-product-flow">
   </head>
   <body>
     <div class="app">
@@ -23,12 +23,9 @@
         </div>
         <nav class="nav">
           <div class="nav-label">Operate</div>
-          <button data-route="/dashboard" data-nav="home" class="active"><span>01</span>Home</button>
-          <button data-route="/dashboard/markets" data-nav="markets"><span>02</span>Markets</button>
-          <button data-route="/dashboard/analytics" data-nav="analytics"><span>03</span>Analytics</button>
-          <div class="nav-label" data-admin-only="true">Admin</div>
-          <button data-route="/dashboard/admin" data-nav="admin" data-admin-only="true"><span>04</span>Admin</button>
-          <button data-route="/dashboard/admin/users" data-nav="users" data-admin-only="true"><span>05</span>Users</button>
+          <button data-route="/dashboard" data-nav="home" class="active"><span>01</span>Trang chủ</button>
+          <button data-route="/dashboard/markets" data-nav="markets"><span>02</span>Thị trường</button>
+          <button data-route="/dashboard/products" data-nav="products"><span>03</span>Sản phẩm</button>
         </nav>
         <div class="auth-box">
           <div class="auth-title">
@@ -73,7 +70,7 @@
         <section class="system-strip">
           <div><span>Public endpoint</span><strong>POST /v1/markets/{market_key}/products/{product_key}/capi/logs</strong></div>
           <div><span>Retention</span><strong>Raw detail 30 days</strong></div>
-          <div><span>Compare</span><strong>Today / Previous / Last week</strong></div>
+          <div><span>Compare</span><strong>Products / Time / Error rate</strong></div>
         </section>
 
         <section id="content"></section>
@@ -90,6 +87,6 @@
       </div>
     </div>
 
-    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260512-professional-layout"></script>
+    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260514-market-product-flow"></script>
   </body>
 </html>

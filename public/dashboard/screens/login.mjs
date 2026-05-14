@@ -35,7 +35,6 @@ export function renderLogin(ctx) {
               <div class="full"><label>Password</label><input id="pagePassword" autocomplete="current-password" type="password" placeholder="password"></div>
             </div>
             <div class="actions">
-              <button id="pageDemo">View demo</button>
               <button id="pageLogin" class="primary">Login</button>
             </div>
             <p id="pageLoginState" class="muted mini"></p>
@@ -50,6 +49,4 @@ export function renderLogin(ctx) {
     $('passwordInput').value = $('pagePassword').value;
     await ctx.login($('pageUsername').value, $('pagePassword').value);
   };
-
-  $('pageDemo').onclick = () => ctx.useDemo();
 }

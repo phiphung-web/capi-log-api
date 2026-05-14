@@ -283,6 +283,15 @@ curl https://capi-log.example.com/v1/markets/vn/products \
   -H "Authorization: Bearer <API_TOKEN>"
 ```
 
+Compare multiple products across the selected date range:
+
+```bash
+curl "https://capi-log.example.com/v1/analytics/products/compare?products=vn:lengbear777,kh:live777&date_from=2026-05-01&date_to=2026-05-14&group_by=day" \
+  -H "Authorization: Bearer <API_TOKEN>"
+```
+
+The comparison response includes totals, error rate, unique users, value, purchase/deposit fields, daily series, and breakdowns by event name, Meta status, ref, pub_id, and channel.
+
 Update catalog metadata for admin/dashboard:
 
 ```bash

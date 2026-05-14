@@ -63,6 +63,11 @@ input, select {
   outline: none;
 }
 
+input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+}
+
 input:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, .12);
@@ -499,6 +504,29 @@ body.login-route .main {
   grid-template-columns: 1.3fr 150px 150px 1fr 110px;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.check-line {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.check-line span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.check-line small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .table-scroll { overflow: auto; }

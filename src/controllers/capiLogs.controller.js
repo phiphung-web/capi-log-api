@@ -31,30 +31,57 @@ function validateSegmentKey(field, value) {
   return null;
 }
 
-function addAccessFilter(req, filters, params, marketExpr, productExpr) {
+async function getAccessScope(req) {
   if (!req.auth || req.auth.is_admin) {
-    return;
+    return null;
   }
 
   if (!req.auth.user || !req.auth.user.id) {
-    filters.push('1 = 0');
+    return { marketKeys: [], productMarketKeys: [], productKeys: [] };
+  }
+
+  const [marketAccess, productAccess] = await Promise.all([
+    pool.query('SELECT market_key FROM capi_user_market_access WHERE user_id = $1', [
+      req.auth.user.id,
+    ]),
+    pool.query(
+      'SELECT market_key, product_key FROM capi_user_product_access WHERE user_id = $1',
+      [req.auth.user.id]
+    ),
+  ]);
+
+  return {
+    marketKeys: marketAccess.rows.map((row) => row.market_key),
+    productMarketKeys: productAccess.rows.map((row) => row.market_key),
+    productKeys: productAccess.rows.map((row) => row.product_key),
+  };
+}
+
+function addAccessFilter(accessScope, filters, params, marketExpr, productExpr) {
+  if (!accessScope) {
     return;
   }
 
-  params.push(req.auth.user.id);
-  const index = params.length;
-  filters.push(`(
-    ${marketExpr} IN (
-      SELECT market_key FROM capi_user_market_access WHERE user_id = $${index}
-    )
-    OR EXISTS (
+  const clauses = [];
+
+  if (accessScope.marketKeys.length > 0) {
+    params.push(accessScope.marketKeys);
+    clauses.push(`${marketExpr} = ANY($${params.length}::text[])`);
+  }
+
+  if (accessScope.productKeys.length > 0) {
+    params.push(accessScope.productMarketKeys, accessScope.productKeys);
+    const marketParam = params.length - 1;
+    const productParam = params.length;
+    clauses.push(`EXISTS (
       SELECT 1
-      FROM capi_user_product_access upa
-      WHERE upa.user_id = $${index}
-        AND upa.market_key = ${marketExpr}
-        AND upa.product_key = ${productExpr}
-    )
-  )`);
+      FROM unnest($${marketParam}::text[], $${productParam}::text[]) AS allowed(market_key, product_key)
+      WHERE allowed.market_key = ${marketExpr}
+        AND allowed.product_key = ${productExpr}
+    )`);
+  }
+
+  filters.push(clauses.length > 0 ? `(${clauses.join(' OR ')})` : '1 = 0');
 }
 
 const CATALOG_STATUSES = new Set(['active', 'paused', 'archived']);
@@ -523,47 +550,49 @@ async function createLog(req, res) {
 }
 
 async function listLogs(req, res) {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-  const offset = Math.max(Number(req.query.offset) || 0, 0);
-  const filters = [];
-  const params = [];
+  try {
+    const accessScope = await getAccessScope(req);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const filters = [];
+    const params = [];
 
-  function addFilter(sql, value) {
-    params.push(value);
-    filters.push(sql.replace('?', `$${params.length}`));
-  }
+    function addFilter(sql, value) {
+      params.push(value);
+      filters.push(sql.replace('?', `$${params.length}`));
+    }
 
-  if (req.params.product_key) {
-    addFilter('l.product_key = ?', req.params.product_key);
-  } else if (req.query.product_key) {
-    addFilter('l.product_key = ?', req.query.product_key);
-  }
+    if (req.params.product_key) {
+      addFilter('l.product_key = ?', req.params.product_key);
+    } else if (req.query.product_key) {
+      addFilter('l.product_key = ?', req.query.product_key);
+    }
 
-  if (req.params.market_key) {
-    addFilter('l.market_key = ?', req.params.market_key);
-  } else if (req.query.market_key) {
-    addFilter('l.market_key = ?', req.query.market_key);
-  }
+    if (req.params.market_key) {
+      addFilter('l.market_key = ?', req.params.market_key);
+    } else if (req.query.market_key) {
+      addFilter('l.market_key = ?', req.query.market_key);
+    }
 
-  if (req.query.meta_status) {
-    addFilter('l.meta_status = ?', req.query.meta_status);
-  }
+    if (req.query.meta_status) {
+      addFilter('l.meta_status = ?', req.query.meta_status);
+    }
 
-  if (req.query.event_name) {
-    addFilter('l.event_name = ?', req.query.event_name);
-  }
+    if (req.query.event_name) {
+      addFilter('l.event_name = ?', req.query.event_name);
+    }
 
-  if (req.query.date_from) {
-    addFilter('l.created_at >= ?::date', req.query.date_from);
-  }
+    if (req.query.date_from) {
+      addFilter('l.created_at >= ?::date', req.query.date_from);
+    }
 
-  if (req.query.date_to) {
-    addFilter("l.created_at < (?::date + INTERVAL '1 day')", req.query.date_to);
-  }
+    if (req.query.date_to) {
+      addFilter("l.created_at < (?::date + INTERVAL '1 day')", req.query.date_to);
+    }
 
-  if (req.query.search) {
-    params.push(`%${req.query.search}%`);
-    filters.push(`(
+    if (req.query.search) {
+      params.push(`%${req.query.search}%`);
+      filters.push(`(
       l.event_id ILIKE $${params.length}
       OR l.txn_id ILIKE $${params.length}
       OR l.user_id ILIKE $${params.length}
@@ -575,15 +604,15 @@ async function listLogs(req, res) {
       OR p.display_name ILIKE $${params.length}
       OR p.category ILIKE $${params.length}
     )`);
-  }
+    }
 
-  addAccessFilter(req, filters, params, 'l.market_key', 'l.product_key');
+    addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
 
-  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  const dataParams = [...params, limit, offset];
-  const countParams = params;
+    const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+    const dataParams = [...params, limit, offset];
+    const countParams = params;
 
-  const dataSql = `
+    const dataSql = `
     SELECT
       l.id,
       l.created_at,
@@ -643,7 +672,7 @@ async function listLogs(req, res) {
     LIMIT $${params.length + 1}
     OFFSET $${params.length + 2}
   `;
-  const countSql = `
+    const countSql = `
     SELECT COUNT(*)::integer AS total
     FROM capi_event_logs l
     LEFT JOIN capi_markets m
@@ -654,7 +683,6 @@ async function listLogs(req, res) {
     ${whereSql}
   `;
 
-  try {
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataSql, dataParams),
       pool.query(countSql, countParams),
@@ -681,21 +709,23 @@ async function listLogs(req, res) {
 }
 
 async function listProducts(req, res) {
-  const filters = [];
-  const params = [];
+  try {
+    const accessScope = await getAccessScope(req);
+    const filters = [];
+    const params = [];
 
-  if (req.params.market_key) {
-    params.push(req.params.market_key);
-    filters.push(`p.market_key = $${params.length}`);
-  } else if (req.query.market_key) {
-    params.push(req.query.market_key);
-    filters.push(`p.market_key = $${params.length}`);
-  }
+    if (req.params.market_key) {
+      params.push(req.params.market_key);
+      filters.push(`p.market_key = $${params.length}`);
+    } else if (req.query.market_key) {
+      params.push(req.query.market_key);
+      filters.push(`p.market_key = $${params.length}`);
+    }
 
-  addAccessFilter(req, filters, params, 'p.market_key', 'p.product_key');
+    addAccessFilter(accessScope, filters, params, 'p.market_key', 'p.product_key');
 
-  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  const sql = `
+    const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+    const sql = `
     WITH log_stats AS (
       SELECT
         market_key,
@@ -730,7 +760,6 @@ async function listProducts(req, res) {
     ORDER BY last_seen_at DESC
   `;
 
-  try {
     const { rows } = await pool.query(sql, params);
 
     return res.json({
@@ -749,11 +778,13 @@ async function listProducts(req, res) {
 }
 
 async function listMarkets(req, res) {
-  const filters = [];
-  const params = [];
-  addAccessFilter(req, filters, params, 'm.market_key', 'p.product_key');
-  const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  const sql = `
+  try {
+    const accessScope = await getAccessScope(req);
+    const filters = [];
+    const params = [];
+    addAccessFilter(accessScope, filters, params, 'm.market_key', 'p.product_key');
+    const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+    const sql = `
     WITH log_stats AS (
       SELECT
         market_key,
@@ -802,7 +833,6 @@ async function listMarkets(req, res) {
     ORDER BY last_seen_at DESC
   `;
 
-  try {
     const { rows } = await pool.query(sql, params);
 
     return res.json({

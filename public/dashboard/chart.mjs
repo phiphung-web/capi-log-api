@@ -49,3 +49,39 @@ export async function loadCompareChart(product) {
     drawCompareChart();
   }
 }
+
+export function drawProductSeriesChart(products, metric = 'total_events') {
+  const canvas = document.getElementById('productCompareChart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width = canvas.clientWidth * devicePixelRatio;
+  const height = canvas.height = canvas.clientHeight * devicePixelRatio;
+  const colors = ['#0f766e', '#b42318', '#9a6700', '#2563eb', '#7c3aed', '#475569'];
+  const lines = products.map((product, index) => ({
+    color: colors[index % colors.length],
+    values: (product.series || []).map((row) => Number(row[metric] || 0)),
+  })).filter((line) => line.values.length > 0);
+
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  ctx.clearRect(0, 0, width, height);
+
+  const max = Math.max(...lines.flatMap((line) => line.values), 1);
+  lines.forEach((line) => {
+    ctx.beginPath();
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    line.values.forEach((value, index) => {
+      const denominator = Math.max(line.values.length - 1, 1);
+      const x = 22 + (index * (canvas.clientWidth - 44)) / denominator;
+      const y = canvas.clientHeight - 24 - (value / max) * (canvas.clientHeight - 48);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.stroke();
+  });
+}

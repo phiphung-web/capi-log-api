@@ -1,7 +1,7 @@
 import { $ } from './dom.mjs';
 import { api } from './api.mjs';
-import { go, logPath, marketPath, productPath, routeFromLocation } from './router.mjs';
-import { setToken, state, useDemoData, useLiveData } from './state.mjs';
+import { go, logPath, marketPath, productPath, productsPath, routeFromLocation } from './router.mjs';
+import { setToken, state, useLiveData } from './state.mjs';
 import { showLogDetail } from './modal.mjs';
 import { fromIsoDate, toIsoDate } from './utils.mjs';
 import { renderAdmin } from './screens/admin.mjs';
@@ -13,6 +13,7 @@ import { renderMarketDetail } from './screens/marketDetail.mjs';
 import { renderMarkets } from './screens/markets.mjs';
 import { renderOverview } from './screens/overview.mjs';
 import { renderProductDetail } from './screens/productDetail.mjs';
+import { renderProductsCompare } from './screens/productsCompare.mjs';
 import { renderProducts } from './screens/products.mjs';
 import { renderUsers } from './screens/users.mjs';
 
@@ -20,6 +21,8 @@ const renderers = {
   home: renderOverview,
   login: renderLogin,
   markets: renderMarkets,
+  products: renderProducts,
+  productsCompare: renderProductsCompare,
   marketDetail: renderMarketDetail,
   marketProducts: renderProducts,
   productDetail: renderProductDetail,
@@ -39,13 +42,13 @@ function context() {
     navigate: go,
     render,
     setScreen,
-    useDemo,
   };
 }
 
 function setScreen(screen, params = {}) {
   if (screen === 'markets') return go('/dashboard/markets');
   if (screen === 'products' && params.selectedMarket) return go(`/dashboard/markets/${encodeURIComponent(params.selectedMarket)}/products`);
+  if (screen === 'products') return go(productsPath());
   if (screen === 'product' && params.selectedProduct) return go(productPath(params.selectedProduct.market_key, params.selectedProduct.product_key));
   if (screen === 'logs' && params.selectedProduct) return go(`/dashboard/markets/${encodeURIComponent(params.selectedProduct.market_key)}/products/${encodeURIComponent(params.selectedProduct.product_key)}/logs`);
   if (screen === 'analytics') return go('/dashboard/analytics');
@@ -87,6 +90,11 @@ function setActiveNav(nav) {
 
 function render() {
   const route = routeFromLocation();
+  if (route.name !== 'login' && !state.token) {
+    go('/dashboard/login');
+    return;
+  }
+
   syncStateFromRoute(route);
   setActiveNav(route.nav);
   document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
@@ -124,16 +132,26 @@ function bindLinks() {
 
 async function loadData() {
   if (!state.token) {
-    useDemoData();
     document.body.classList.remove('admin-auth');
-    $('authState').textContent = 'Demo mode. Save token or login to load live data.';
-    render();
+    $('authState').textContent = 'Please log in to continue.';
+    go('/dashboard/login');
+    return;
+  }
+
+  let me;
+  try {
+    me = await api('/v1/auth/me');
+  } catch (error) {
+    $('authState').textContent = `Session failed (${error.message}). Please log in again.`;
+    setToken('');
+    document.body.classList.remove('admin-auth');
+    go('/dashboard/login');
     return;
   }
 
   try {
-    const [me, markets, products, logs] = await Promise.all([
-      api('/v1/auth/me'),
+    const [overview, markets, products, logs] = await Promise.all([
+      api(`/v1/analytics/overview?date_from=${toIsoDate($('dateFrom').value)}&date_to=${toIsoDate($('dateTo').value)}`),
       api('/v1/markets'),
       api('/v1/products'),
       api(`/v1/capi/logs?limit=250&date_from=${toIsoDate($('dateFrom').value)}&date_to=${toIsoDate($('dateTo').value)}`),
@@ -141,6 +159,7 @@ async function loadData() {
 
     useLiveData({
       auth: me.data,
+      overview: overview.data,
       markets: markets.data,
       products: products.data,
       logs: logs.data,
@@ -153,10 +172,7 @@ async function loadData() {
     });
     render();
   } catch (error) {
-    $('authState').textContent = `Live load failed (${error.message}). Showing demo data.`;
-    useDemoData();
-    document.body.classList.remove('admin-auth');
-    render();
+    $('authState').textContent = `Live data load failed (${error.message}).`;
   }
 }
 
@@ -170,13 +186,6 @@ async function login(username, password) {
   setToken(payload.data.token);
   $('tokenInput').value = state.token;
   await loadData();
-  go('/dashboard');
-}
-
-function useDemo() {
-  setToken('');
-  useDemoData();
-  document.body.classList.remove('admin-auth');
   go('/dashboard');
 }
 
@@ -200,7 +209,7 @@ function bindShellActions() {
     await login(username, password);
   };
 
-  $('demoBtn').onclick = useDemo;
+  $('demoBtn').style.display = 'none';
   $('refreshBtn').onclick = loadData;
   $('closeModal').onclick = () => $('modal').classList.add('hidden');
 }
