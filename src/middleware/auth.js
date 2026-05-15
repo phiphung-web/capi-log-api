@@ -1,7 +1,27 @@
 const pool = require('../db/pool');
 const { verifyToken } = require('../utils/security');
 
-function unauthorized(res, errorCode, detail) {
+function logAuthFailure(req, errorCode, detail) {
+  const authHeader = getHeader(req, 'authorization');
+  const scheme = authHeader ? authHeader.split(/\s+/)[0] : null;
+
+  console.warn('Auth failed:', {
+    error_code: errorCode,
+    detail,
+    method: req.method,
+    path: req.originalUrl || req.url,
+    ip: req.ip || req.socket?.remoteAddress || null,
+    user_agent: req.get('user-agent') || null,
+    has_authorization: Boolean(authHeader),
+    authorization_scheme: scheme,
+    has_x_api_token: Boolean(getHeader(req, 'x-api-token')),
+    has_x_api_key: Boolean(getHeader(req, 'x-api-key')),
+  });
+}
+
+function unauthorized(req, res, errorCode, detail) {
+  logAuthFailure(req, errorCode, detail);
+
   return res.status(401).json({
     success: false,
     message: 'Unauthorized.',
@@ -103,7 +123,7 @@ async function auth(req, res, next) {
 
   const resolvedToken = resolveRequestToken(req);
   if (resolvedToken.error) {
-    return unauthorized(res, resolvedToken.error.code, resolvedToken.error.detail);
+    return unauthorized(req, res, resolvedToken.error.code, resolvedToken.error.detail);
   }
 
   const { token } = resolvedToken;
@@ -123,6 +143,7 @@ async function auth(req, res, next) {
 
   if (!payload || !payload.user_id) {
     return unauthorized(
+      req,
       res,
       'AUTH_TOKEN_INVALID',
       'Token does not match API_TOKEN and is not a valid user session token.'
@@ -138,6 +159,7 @@ async function auth(req, res, next) {
 
     if (!user || user.status !== 'active') {
       return unauthorized(
+        req,
         res,
         'AUTH_USER_INACTIVE',
         'User token is valid but the user is missing or inactive.'
