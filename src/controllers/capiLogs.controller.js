@@ -1,11 +1,39 @@
 const pool = require('../db/pool');
 
+function getMetaEvent(body) {
+  const event = body?.request?.data?.[0] || body?.meta_request_payload?.data?.[0];
+  return event && typeof event === 'object' && !Array.isArray(event) ? event : {};
+}
+
+function getPixelIdFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/graph\.facebook\.com\/v\d+\.\d+\/([^/?#]+)\/events/i);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function getSourceBody(body) {
+  const metaEvent = getMetaEvent(body);
+  const customData =
+    metaEvent.custom_data && typeof metaEvent.custom_data === 'object' && !Array.isArray(metaEvent.custom_data)
+      ? metaEvent.custom_data
+      : {};
+  const userData =
+    metaEvent.user_data && typeof metaEvent.user_data === 'object' && !Array.isArray(metaEvent.user_data)
+      ? metaEvent.user_data
+      : null;
+  const eventSourceUrl = body.event_source_url || body.url || null;
+
   if (body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)) {
     return {
+      ...customData,
+      event_name: metaEvent.event_name,
+      event_time: metaEvent.event_time,
+      event_id: metaEvent.event_id,
+      user_data: userData,
       ...body.metadata,
+      pixel_id: body.metadata.pixel_id || body.pixel_id || getPixelIdFromUrl(eventSourceUrl),
       sent_at: body.sent_at || body.metadata.sent_at,
-      event_source_url: body.url || body.event_source_url || body.metadata.event_source_url,
+      event_source_url: eventSourceUrl || body.metadata.event_source_url,
       meta_request_payload: body.request || body.meta_request_payload || body.metadata.meta_request_payload,
       meta_response: body.response || body.meta_response || body.metadata.meta_response,
       raw_payload: body,
@@ -14,8 +42,14 @@ function getSourceBody(body) {
   }
 
   return {
+    ...customData,
+    event_name: metaEvent.event_name,
+    event_time: metaEvent.event_time,
+    event_id: metaEvent.event_id,
+    user_data: userData,
     ...body,
-    event_source_url: body.event_source_url || body.url || null,
+    pixel_id: body.pixel_id || getPixelIdFromUrl(eventSourceUrl),
+    event_source_url: eventSourceUrl,
     meta_request_payload: body.meta_request_payload || body.request || null,
     meta_response: body.meta_response || body.response || null,
     raw_payload: body,
