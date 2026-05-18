@@ -65,6 +65,10 @@ function validateSegmentKey(field, value) {
   return null;
 }
 
+function escapeLikePattern(value) {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
 async function getAccessScope(req) {
   if (!req.auth || req.auth.is_admin) {
     return null;
@@ -635,19 +639,25 @@ async function listLogs(req, res) {
     }
 
     if (req.query.search) {
-      params.push(`%${req.query.search}%`);
-      filters.push(`(
-      l.event_id ILIKE $${params.length}
-      OR l.txn_id ILIKE $${params.length}
-      OR l.user_id ILIKE $${params.length}
-      OR l.username ILIKE $${params.length}
-      OR l.fbtrace_id ILIKE $${params.length}
-      OR l.ref ILIKE $${params.length}
-      OR l.pub_id ILIKE $${params.length}
-      OR m.display_name ILIKE $${params.length}
-      OR p.display_name ILIKE $${params.length}
-      OR p.category ILIKE $${params.length}
+      const search = String(req.query.search).trim();
+      if (search) {
+        params.push(search);
+        const exactParam = `$${params.length}`;
+        params.push(`${escapeLikePattern(search)}%`);
+        const prefixParam = `$${params.length}`;
+        filters.push(`(
+      l.event_id = ${exactParam}
+      OR l.txn_id = ${exactParam}
+      OR l.user_id ILIKE ${prefixParam} ESCAPE '\\'
+      OR l.username ILIKE ${prefixParam} ESCAPE '\\'
+      OR l.fbtrace_id ILIKE ${prefixParam} ESCAPE '\\'
+      OR l.ref ILIKE ${prefixParam} ESCAPE '\\'
+      OR l.pub_id ILIKE ${prefixParam} ESCAPE '\\'
+      OR m.display_name ILIKE ${prefixParam} ESCAPE '\\'
+      OR p.display_name ILIKE ${prefixParam} ESCAPE '\\'
+      OR p.category ILIKE ${prefixParam} ESCAPE '\\'
     )`);
+      }
     }
 
     addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
@@ -780,6 +790,7 @@ async function listProducts(req, res) {
         COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
         MAX(created_at) AS latest_log_at
       FROM capi_event_logs
+      WHERE created_at >= NOW() - INTERVAL '30 days'
       GROUP BY market_key, product_key
     )
     SELECT
@@ -839,6 +850,7 @@ async function listMarkets(req, res) {
         COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
         MAX(created_at) AS latest_log_at
       FROM capi_event_logs
+      WHERE created_at >= NOW() - INTERVAL '30 days'
       GROUP BY market_key
     )
     SELECT
