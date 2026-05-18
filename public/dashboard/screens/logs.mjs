@@ -39,33 +39,33 @@ function filterLogs(logs) {
 
 export function renderLogs(ctx) {
   setShell(
-    state.selectedProduct ? `Logs: ${state.selectedProduct.product_key}` : 'Logs',
-    'Filter event fields, inspect payloads, and verify Meta response status.',
+    state.selectedProduct ? `Log: ${state.selectedProduct.product_key}` : 'Log sự kiện',
+    'Lọc sự kiện, xem payload và kiểm tra trạng thái phản hồi từ Meta.',
     state.selectedProduct
-      ? `Workspace / ${state.selectedProduct.market_key} / ${state.selectedProduct.product_key} / Logs`
-      : 'Workspace / Logs'
+      ? `Hệ thống / ${state.selectedProduct.market_key} / ${state.selectedProduct.product_key} / Log`
+      : 'Hệ thống / Log'
   );
 
   const logs = filterLogs(state.logs);
   content().innerHTML = `
     <section class="panel">
-      <div class="panel-head"><h2>Filters</h2><span class="muted">Date format dd-mm-yyyy</span></div>
+      <div class="panel-head"><h2>Bộ lọc</h2><span class="muted">Định dạng ngày dd-mm-yyyy</span></div>
       <div class="panel-body filters">
         <input id="filterSearch" value="${esc(state.filters.search || '')}" placeholder="event_id, txn_id, user_id, fbtrace">
-        <select id="filterStatus"><option value="">All status</option><option>received</option><option>error</option><option>unknown</option></select>
+        <select id="filterStatus"><option value="">Tất cả trạng thái</option><option value="received">Meta đã nhận</option><option value="error">Lỗi</option><option value="unknown">Chưa rõ</option></select>
         <input id="filterEvent" value="${esc(state.filters.event || '')}" placeholder="event_name">
         <input id="filterRef" value="${esc(state.filters.ref || '')}" placeholder="ref / pub_id / channel">
-        <button id="applyFilters" class="primary">Apply</button>
+        <button id="applyFilters" class="primary">Áp dụng</button>
       </div>
     </section>
     ${metrics([
-      { label: 'Visible logs', value: logs.length, note: 'After filters' },
-      { label: 'Received', value: logs.filter((log) => log.meta_status === 'received').length, note: 'Meta accepted' },
-      { label: 'Errors', value: logs.filter((log) => log.meta_status === 'error').length, note: 'Needs action' },
-      { label: 'Unknown', value: logs.filter((log) => log.meta_status === 'unknown').length, note: 'Incomplete response' },
-      { label: 'Purchases', value: logs.filter((log) => log.event_name === 'Purchase').length, note: 'Conversion events' },
+      { label: 'Log đang hiển thị', value: logs.length, note: 'Sau khi lọc' },
+      { label: 'Meta nhận', value: logs.filter((log) => log.meta_status === 'received').length, note: 'Meta chấp nhận' },
+      { label: 'Lỗi', value: logs.filter((log) => log.meta_status === 'error').length, note: 'Cần xử lý' },
+      { label: 'Chưa rõ', value: logs.filter((log) => log.meta_status === 'unknown').length, note: 'Phản hồi chưa đầy đủ' },
+      { label: 'Purchase', value: logs.filter((log) => log.event_name === 'Purchase').length, note: 'Sự kiện chuyển đổi' },
     ])}
-    ${table(['Time', 'Market / Product', 'Event', 'Status', 'User / Txn', 'Value', 'Trace'], logs.map((log) => `
+    ${table(['Thời gian', 'Thị trường / Sản phẩm', 'Sự kiện', 'Trạng thái', 'User / Giao dịch', 'Giá trị', 'Trace'], logs.map((log) => `
       <tr>
         <td>${fromIsoDate(log.created_at)}<div class="muted">${new Date(log.created_at).toLocaleTimeString()}</div></td>
         <td>${esc(log.market_display_name || log.market_key)} / ${esc(log.product_display_name || log.product_key)}<div class="muted mono">${esc(log.market_key)} / ${esc(log.product_key)}</div></td>

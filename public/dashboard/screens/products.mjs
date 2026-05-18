@@ -49,40 +49,40 @@ export function renderProducts(ctx) {
   ).length;
 
   setShell(
-    state.selectedMarket ? `Products in ${state.selectedMarket}` : 'Sản phẩm',
+    state.selectedMarket ? `Sản phẩm trong ${state.selectedMarket}` : 'Sản phẩm',
     state.selectedMarket ? 'Sản phẩm thuộc thị trường đang chọn, kèm thông số log tóm tắt.' : 'Toàn bộ sản phẩm, lọc nhanh và chọn nhiều sản phẩm để so sánh.',
-    state.selectedMarket ? `Workspace / Markets / ${state.selectedMarket} / Products` : 'Workspace / Sản phẩm'
+    state.selectedMarket ? `Hệ thống / Thị trường / ${state.selectedMarket} / Sản phẩm` : 'Hệ thống / Sản phẩm'
   );
 
   content().innerHTML = `
     <section class="panel">
       <div class="panel-head">
-        <h2>Filters</h2>
-        <button id="compareSelected" class="primary">Compare selected (${selectedCount})</button>
+        <h2>Bộ lọc</h2>
+        <button id="compareSelected" class="primary">So sánh đã chọn (${selectedCount})</button>
       </div>
       <div class="panel-body filters">
-        <input id="productSearch" value="${esc(state.productFilters.search || '')}" placeholder="product, category, owner">
+        <input id="productSearch" value="${esc(state.productFilters.search || '')}" placeholder="sản phẩm, danh mục, người phụ trách">
         <select id="productMarket" ${state.selectedMarket ? 'disabled' : ''}>
-          <option value="">All markets</option>
+          <option value="">Tất cả thị trường</option>
           ${markets.map((market) => `<option value="${esc(market)}">${esc(market)}</option>`).join('')}
         </select>
         <select id="productStatus">
-          <option value="">All status</option>
-          <option>active</option>
-          <option>paused</option>
-          <option>archived</option>
+          <option value="">Tất cả trạng thái</option>
+          <option value="active">Đang hoạt động</option>
+          <option value="paused">Tạm dừng</option>
+          <option value="archived">Lưu trữ</option>
         </select>
         <select id="productCategory">
-          <option value="">All categories</option>
+          <option value="">Tất cả danh mục</option>
           ${categories.map((category) => `<option value="${esc(category)}">${esc(category)}</option>`).join('')}
         </select>
-        <button id="applyProductFilters">Apply</button>
-        <button id="clearProductFilters" class="ghost">Clear</button>
+        <button id="applyProductFilters">Áp dụng</button>
+        <button id="clearProductFilters" class="ghost">Xóa lọc</button>
       </div>
     </section>
     <div style="height:14px"></div>
     ${productCards(products)}
-    ${table(['Compare', 'Market / Product', 'Category', 'Events', 'Received', 'Errors', 'Status'], products.map((product) => {
+    ${table(['So sánh', 'Thị trường / Sản phẩm', 'Danh mục', 'Sự kiện', 'Meta nhận', 'Lỗi', 'Trạng thái'], products.map((product) => {
       const selector = productSelector(product);
       return `
       <tr>

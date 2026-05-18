@@ -233,8 +233,45 @@ body.login-route .main {
 .auth-box .divider,
 .auth-box label,
 .auth-box #usernameInput,
-.auth-box #passwordInput {
+.auth-box #passwordInput,
+.auth-box .auth-actions {
   display: none;
+}
+
+.session-user {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  background: rgba(255,255,255,.07);
+}
+
+.session-user.hidden,
+#logoutBtn.hidden {
+  display: none;
+}
+
+.session-user span,
+.session-user small {
+  color: #aebbd0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.session-user span {
+  text-transform: uppercase;
+}
+
+.session-user strong {
+  color: #fff;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.session-user small {
+  color: #9ff1e7;
 }
 
 .auth-box {

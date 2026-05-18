@@ -1,7 +1,7 @@
 import { $ } from './dom.mjs';
 import { api } from './api.mjs';
 import { go, logPath, marketPath, productPath, productsPath, routeFromLocation } from './router.mjs';
-import { setToken, state, useLiveData } from './state.mjs';
+import { clearLiveData, setToken, state, useLiveData } from './state.mjs';
 import { showLogDetail } from './modal.mjs';
 import { fromIsoDate, toIsoDate } from './utils.mjs';
 import { renderAdmin } from './screens/admin.mjs';
@@ -88,11 +88,77 @@ function setActiveNav(nav) {
   });
 }
 
+function formatExpiry(value) {
+  if (!value) return 'Không có thời hạn phiên';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Không có thời hạn phiên';
+  }
+
+  return `Hết hạn ${date.toLocaleString()}`;
+}
+
+function roleLabel(role) {
+  return {
+    admin: 'Quản trị viên',
+    manager: 'Quản lý',
+    viewer: 'Người xem',
+    user: 'Người dùng',
+  }[role] || role || 'Người dùng';
+}
+
+function updateSessionPanel() {
+  const user = state.auth?.user;
+  const sessionUser = $('sessionUser');
+  const logoutBtn = $('logoutBtn');
+
+  if (!state.auth || !user) {
+    sessionUser.classList.add('hidden');
+    logoutBtn.classList.add('hidden');
+    $('sessionUserName').textContent = '-';
+    $('sessionUserRole').textContent = '-';
+    $('sessionExpires').textContent = '-';
+    return;
+  }
+
+  sessionUser.classList.remove('hidden');
+  logoutBtn.classList.remove('hidden');
+  $('sessionUserName').textContent = user.display_name || user.username || 'Người dùng';
+  $('sessionUserRole').textContent = `${roleLabel(state.auth.role)} / ${user.username || '-'}`;
+  $('sessionExpires').textContent = formatExpiry(state.auth.expires_at);
+}
+
+function renderSessionCheck(route) {
+  setActiveNav(route.nav);
+  document.body.classList.remove('login-route');
+  document.body.classList.remove('admin-auth');
+  $('screenTitle').textContent = 'Đang kiểm tra phiên';
+  $('screenSubtitle').textContent = 'Đang xác thực phiên đăng nhập trước khi tải dữ liệu dashboard.';
+  $('breadcrumb').textContent = 'Hệ thống / Phiên đăng nhập';
+  $('authBadge').textContent = 'Đang kiểm tra';
+  $('authState').textContent = 'Đang kiểm tra phiên đã lưu...';
+  updateSessionPanel();
+  $('content').innerHTML = `
+    <section class="panel">
+      <div class="panel-body">
+        <strong>Đang kiểm tra phiên đã lưu...</strong>
+        <p class="muted mini" style="margin-top:8px">Nếu phiên đã hết hạn, hệ thống sẽ đưa bạn về trang đăng nhập.</p>
+      </div>
+    </section>
+  `;
+}
+
 function render() {
   const route = routeFromLocation();
 
   if (route.name !== 'login' && !state.token) {
     go('/dashboard/login');
+    return;
+  }
+
+  if (state.token && !state.authChecked) {
+    renderSessionCheck(route);
     return;
   }
 
@@ -105,6 +171,7 @@ function render() {
   setActiveNav(route.nav);
   document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
   document.body.classList.toggle('login-route', route.name === 'login');
+  updateSessionPanel();
 
   const renderer = renderers[route.name] || renderOverview;
   renderer(context());
@@ -138,8 +205,13 @@ function bindLinks() {
 
 async function loadData() {
   if (!state.token) {
+    state.auth = null;
+    state.authChecked = true;
+    state.authLoading = false;
+    clearLiveData();
     document.body.classList.remove('admin-auth');
-    $('authState').textContent = 'Please log in to continue.';
+    $('authState').textContent = 'Vui lòng đăng nhập để tiếp tục.';
+    updateSessionPanel();
     go('/dashboard/login');
     return;
   }
@@ -148,12 +220,20 @@ async function loadData() {
   try {
     me = await api('/v1/auth/me');
   } catch (error) {
-    $('authState').textContent = `Session failed (${error.message}). Please log in again.`;
+    $('authState').textContent = `Phiên đăng nhập không hợp lệ (${error.message}). Vui lòng đăng nhập lại.`;
     setToken('');
+    state.authChecked = true;
+    state.authLoading = false;
+    clearLiveData();
     document.body.classList.remove('admin-auth');
+    updateSessionPanel();
     go('/dashboard/login');
     return;
   }
+
+  state.auth = me.data;
+  state.authChecked = true;
+  state.authLoading = false;
 
   try {
     const [overview, reconciliation, markets, products, logs] = await Promise.all([
@@ -173,15 +253,27 @@ async function loadData() {
       logs: logs.data,
     });
 
-    $('authState').textContent = `${me.data.role || 'token'} loaded.`;
+    $('authState').textContent = `Đã tải phiên ${roleLabel(me.data.role)}.`;
     document.body.classList.toggle('admin-auth', Boolean(me.data.is_admin));
     document.querySelectorAll('[data-admin-only="true"]').forEach((el) => {
       el.style.display = me.data.is_admin ? '' : 'none';
     });
     render();
   } catch (error) {
-    $('authState').textContent = `Live data load failed (${error.message}).`;
+    $('authState').textContent = `Không tải được dữ liệu live (${error.message}).`;
+    render();
   }
+}
+
+function logout() {
+  setToken('');
+  state.authChecked = true;
+  state.authLoading = false;
+  clearLiveData();
+  document.body.classList.remove('admin-auth');
+  updateSessionPanel();
+  $('authState').textContent = 'Đã đăng xuất.';
+  go('/dashboard/login');
 }
 
 async function login(username, password, rememberMe = false) {
@@ -192,7 +284,6 @@ async function login(username, password, rememberMe = false) {
   });
 
   setToken(payload.data.token, Boolean(payload.data.remember_me));
-  $('tokenInput').value = state.token;
   await loadData();
   go('/dashboard');
 }
@@ -202,28 +293,12 @@ function bindShellActions() {
     button.onclick = () => go(button.dataset.route);
   });
 
-  $('saveToken').onclick = () => {
-    setToken($('tokenInput').value.trim());
-    loadData();
-  };
-
-  $('loginBtn').onclick = async () => {
-    const username = $('usernameInput').value.trim();
-    const password = $('passwordInput').value;
-    if (!username || !password) {
-      go('/dashboard/login');
-      return;
-    }
-    await login(username, password, false);
-  };
-
-  $('demoBtn').style.display = 'none';
+  $('logoutBtn').onclick = logout;
   $('refreshBtn').onclick = loadData;
   $('closeModal').onclick = () => $('modal').classList.add('hidden');
 }
 
 function boot() {
-  $('tokenInput').value = state.token;
   $('dateTo').value = fromIsoDate(new Date());
   $('dateFrom').value = fromIsoDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
 

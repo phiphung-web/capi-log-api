@@ -19,6 +19,22 @@ const REMEMBER_SESSION_SECONDS = Math.max(
   DEFAULT_SESSION_SECONDS
 );
 
+function parseBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return /^(true|1|yes|on)$/i.test(value.trim());
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+
+  return false;
+}
+
 function sanitizeUser(user) {
   if (!user) return null;
   return {
@@ -32,7 +48,8 @@ function sanitizeUser(user) {
 }
 
 async function login(req, res) {
-  const { username, password, remember_me: rememberMe = false } = req.body || {};
+  const { username, password } = req.body || {};
+  const rememberMe = parseBoolean(req.body?.remember_me);
 
   if (!username || !password) {
     return res.status(400).json({

@@ -1,7 +1,7 @@
 import { $, content } from '../dom.mjs';
 import { api } from '../api.mjs';
 import { state } from '../state.mjs';
-import { metrics, statusPill, table } from '../components.mjs';
+import { metrics, statusLabel, statusPill, table } from '../components.mjs';
 import { drawProductSeriesChart } from '../chart.mjs';
 import { go, productPath, productsPath } from '../router.mjs';
 import { setShell } from '../shell.mjs';
@@ -28,7 +28,7 @@ function selectedQuery(products) {
 
 function topBreakdown(product, dimension) {
   const rows = product.breakdowns?.[dimension] || [];
-  return rows.slice(0, 3).map((row) => `${row.name}: ${row.total_events}`).join(', ') || '-';
+  return rows.slice(0, 3).map((row) => `${dimension === 'meta_status' ? statusLabel(row.name) : row.name}: ${row.total_events}`).join(', ') || '-';
 }
 
 function renderResults(payload) {
@@ -45,38 +45,38 @@ function renderResults(payload) {
 
   $('compareResults').innerHTML = `
     ${metrics([
-      { label: 'Compared', value: products.length, note: 'Authorized products' },
-      { label: 'Events', value: totals.events, note: 'Selected range' },
-      { label: 'Received', value: totals.received, note: 'Meta accepted' },
-      { label: 'Errors', value: totals.errors, note: 'Needs review' },
-      { label: 'Unknown', value: totals.unknown, note: 'Incomplete response' },
-      { label: 'Unique users', value: totals.users, note: 'Sum by product' },
-      { label: 'Total value', value: totals.value.toFixed(2), note: 'From log value' },
-      { label: 'Error rate', value: totals.events ? `${Math.round((totals.errors / totals.events) * 100)}%` : '0%', note: 'Overall' },
+      { label: 'Đang so sánh', value: products.length, note: 'Sản phẩm được phân quyền' },
+      { label: 'Sự kiện', value: totals.events, note: 'Khoảng đã chọn' },
+      { label: 'Meta nhận', value: totals.received, note: 'Meta chấp nhận' },
+      { label: 'Lỗi', value: totals.errors, note: 'Cần rà soát' },
+      { label: 'Chưa rõ', value: totals.unknown, note: 'Phản hồi chưa đầy đủ' },
+      { label: 'User duy nhất', value: totals.users, note: 'Cộng theo sản phẩm' },
+      { label: 'Tổng giá trị', value: totals.value.toFixed(2), note: 'Từ trường value trong log' },
+      { label: 'Tỷ lệ lỗi', value: totals.events ? `${Math.round((totals.errors / totals.events) * 100)}%` : '0%', note: 'Toàn bộ sản phẩm đã chọn' },
     ])}
     <section class="panel">
-      <div class="panel-head"><h2>Trend by product</h2><span class="muted">${esc(payload.date_from)} to ${esc(payload.date_to)}</span></div>
+      <div class="panel-head"><h2>Xu hướng theo sản phẩm</h2><span class="muted">${esc(payload.date_from)} đến ${esc(payload.date_to)}</span></div>
       <div class="panel-body">
         <div class="chart-toolbar">
           <label>
-            <span>Metric</span>
+            <span>Chỉ số</span>
             <select id="productChartMetric">
-              <option value="total_events">Total events</option>
-              <option value="received_events">Meta received</option>
-              <option value="error_events">Errors</option>
-              <option value="unknown_events">Unknown</option>
-              <option value="unique_users">Unique users</option>
-              <option value="total_value">Total value</option>
-              <option value="purchase_events">Purchases</option>
-              <option value="total_deposit_amount">Deposit amount</option>
+              <option value="total_events">Tổng sự kiện</option>
+              <option value="received_events">Meta nhận</option>
+              <option value="error_events">Lỗi</option>
+              <option value="unknown_events">Chưa rõ</option>
+              <option value="unique_users">User duy nhất</option>
+              <option value="total_value">Tổng giá trị</option>
+              <option value="purchase_events">Purchase</option>
+              <option value="total_deposit_amount">Tổng nạp</option>
             </select>
           </label>
           <label>
-            <span>Chart type</span>
+            <span>Kiểu biểu đồ</span>
             <select id="productChartType">
-              <option value="line">Line</option>
-              <option value="area">Area</option>
-              <option value="bar">Bar</option>
+              <option value="line">Đường</option>
+              <option value="area">Vùng</option>
+              <option value="bar">Cột</option>
             </select>
           </label>
         </div>
@@ -87,7 +87,7 @@ function renderResults(payload) {
       </div>
     </section>
     <div style="height:14px"></div>
-    ${table(['Product', 'Events', 'Received', 'Errors', 'Unknown', 'Error rate', 'Users', 'Value', 'Purchases', 'First purchase', 'Deposit'], products.map((product) => `
+    ${table(['Sản phẩm', 'Sự kiện', 'Meta nhận', 'Lỗi', 'Chưa rõ', 'Tỷ lệ lỗi', 'User', 'Giá trị', 'Purchase', 'Purchase đầu tiên', 'Nạp'], products.map((product) => `
       <tr>
         <td><span class="link" data-route="${esc(productPath(product.market_key, product.product_key))}">${esc(product.product_display_name || product.product_key)}</span><div class="muted mono">${esc(product.market_key)} / ${esc(product.product_key)}</div>${statusPill(product.product_status || 'unknown')}</td>
         <td>${esc(product.total_events || 0)}</td>
@@ -102,7 +102,7 @@ function renderResults(payload) {
         <td>${Number(product.total_deposit_amount || 0).toFixed(2)}</td>
       </tr>
     `))}
-    ${table(['Product', 'Top events', 'Meta status', 'Top refs', 'Top pub_id', 'Top channels'], products.map((product) => `
+    ${table(['Sản phẩm', 'Top event', 'Trạng thái Meta', 'Top ref', 'Top pub_id', 'Top channel'], products.map((product) => `
       <tr>
         <td>${esc(product.product_display_name || product.product_key)}<div class="muted mono">${esc(product.market_key)} / ${esc(product.product_key)}</div></td>
         <td>${esc(topBreakdown(product, 'event_name'))}</td>
@@ -133,11 +133,11 @@ function renderResults(payload) {
 
 async function loadComparison(products) {
   if (products.length === 0) {
-    $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">No products available to compare.</div></section>`;
+    $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">Chưa có sản phẩm để so sánh.</div></section>`;
     return;
   }
 
-  $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">Loading comparison...</div></section>`;
+  $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">Đang tải dữ liệu so sánh...</div></section>`;
 
   try {
     const params = new URLSearchParams({
@@ -149,7 +149,7 @@ async function loadComparison(products) {
     const payload = await api(`/v1/analytics/products/compare?${params.toString()}`);
     renderResults(payload.data);
   } catch (error) {
-    $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">Could not load comparison (${esc(error.message)}).</div></section>`;
+    $('compareResults').innerHTML = `<section class="panel"><div class="panel-body muted">Không tải được dữ liệu so sánh (${esc(error.message)}).</div></section>`;
   }
 }
 
@@ -157,15 +157,15 @@ export function renderProductsCompare(ctx) {
   const products = selectedProducts();
   state.compareSelection = products.map(selectorFor);
 
-  setShell('So sánh sản phẩm', 'So sánh nhiều sản phẩm cùng hoặc khác thị trường theo log, lỗi, người dùng, value và breakdown.', 'Workspace / Sản phẩm / So sánh');
+  setShell('So sánh sản phẩm', 'So sánh nhiều sản phẩm cùng hoặc khác thị trường theo log, lỗi, người dùng, value và breakdown.', 'Hệ thống / Sản phẩm / So sánh');
 
   content().innerHTML = `
     <section class="panel">
       <div class="panel-head">
-        <h2>Products to compare</h2>
+        <h2>Sản phẩm cần so sánh</h2>
         <div class="actions">
-          <button data-route="${esc(productsPath())}">Back to products</button>
-          <button id="reloadCompare" class="primary">Reload compare</button>
+          <button data-route="${esc(productsPath())}">Quay lại sản phẩm</button>
+          <button id="reloadCompare" class="primary">Tải lại so sánh</button>
         </div>
       </div>
       <div class="panel-body filters">

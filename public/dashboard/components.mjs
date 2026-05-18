@@ -1,7 +1,23 @@
 import { errorRate, esc } from './utils.mjs';
 
+const STATUS_LABELS = {
+  active: 'Đang hoạt động',
+  paused: 'Tạm dừng',
+  archived: 'Lưu trữ',
+  received: 'Meta đã nhận',
+  error: 'Lỗi',
+  unknown: 'Chưa rõ',
+  pending: 'Đang chờ',
+  success: 'Thành công',
+};
+
+export function statusLabel(status) {
+  return STATUS_LABELS[status] || status || 'Chưa rõ';
+}
+
 export function statusPill(status) {
-  return `<span class="status ${esc(status || 'unknown')}">${esc(status || 'unknown')}</span>`;
+  const rawStatus = status || 'unknown';
+  return `<span class="status ${esc(rawStatus)}">${esc(statusLabel(rawStatus))}</span>`;
 }
 
 export function metrics(items) {
@@ -17,7 +33,7 @@ export function metrics(items) {
 export function table(headers, rows) {
   const body = rows.length
     ? rows.join('')
-    : `<tr><td colspan="${headers.length}" class="muted">No data for the selected scope.</td></tr>`;
+    : `<tr><td colspan="${headers.length}" class="muted">Không có dữ liệu trong phạm vi đã chọn.</td></tr>`;
 
   return `
     <div class="panel">
@@ -34,9 +50,9 @@ export function table(headers, rows) {
 export function entityStats(total, received, errors) {
   return `
     <div class="entity-stats">
-      <div><span>Events</span><strong>${esc(total || 0)}</strong></div>
-      <div><span>Received</span><strong>${esc(received || 0)}</strong></div>
-      <div><span>Error rate</span><strong>${esc(errorRate(total, errors))}</strong></div>
+      <div><span>Sự kiện</span><strong>${esc(total || 0)}</strong></div>
+      <div><span>Meta nhận</span><strong>${esc(received || 0)}</strong></div>
+      <div><span>Tỷ lệ lỗi</span><strong>${esc(errorRate(total, errors))}</strong></div>
     </div>
   `;
 }
@@ -47,7 +63,7 @@ export function marketCards(markets) {
       <div class="entity-top">
         <div class="entity-title">
           <strong><span class="link" data-market="${esc(market.market_key)}">${esc(market.display_name || market.market_key)}</span></strong>
-          <span class="mono">${esc(market.market_key)} / ${esc(market.region || 'region unset')}</span>
+          <span class="mono">${esc(market.market_key)} / ${esc(market.region || 'chưa đặt khu vực')}</span>
         </div>
         ${statusPill(market.status)}
       </div>
@@ -62,7 +78,7 @@ export function productCards(products) {
       <div class="entity-top">
         <div class="entity-title">
           <strong><span class="link" data-product="${esc(product.market_key)}:${esc(product.product_key)}">${esc(product.display_name || product.product_key)}</span></strong>
-          <span class="mono">${esc(product.market_key)} / ${esc(product.product_key)} / ${esc(product.category || 'uncategorized')}</span>
+          <span class="mono">${esc(product.market_key)} / ${esc(product.product_key)} / ${esc(product.category || 'chưa phân loại')}</span>
         </div>
         ${statusPill(product.status)}
       </div>
@@ -72,7 +88,7 @@ export function productCards(products) {
 }
 
 export function marketRows(markets, compact = false) {
-  return table(['Market', 'Products', 'Events', 'Received', 'Error rate', 'Status'], markets.map((market) => `
+  return table(['Thị trường', 'Sản phẩm', 'Sự kiện', 'Meta nhận', 'Tỷ lệ lỗi', 'Trạng thái'], markets.map((market) => `
     <tr>
       <td><span class="link" data-market="${esc(market.market_key)}">${esc(market.display_name || market.market_key)}</span><div class="muted mono">${esc(market.market_key)}</div></td>
       <td>${esc(market.total_products || 0)}</td>
@@ -84,7 +100,7 @@ export function marketRows(markets, compact = false) {
   `)).replace('class="panel"', compact ? 'class="panel" style="box-shadow:none"' : 'class="panel"');
 }
 
-export function chartLegend(labels = ['Current', 'Previous', 'Last week']) {
+export function chartLegend(labels = ['Hiện tại', 'Kỳ trước', 'Cùng kỳ tuần trước']) {
   const colors = ['#0f766e', '#b42318', '#9a6700'];
   return `
     <div class="legend">

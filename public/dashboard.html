@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,37 +13,33 @@
           <div class="brand-mark">CP</div>
           <div>
             <strong>CAPI Log Platform</strong>
-            <span>Market / Product / Event logs</span>
+            <span>Log CAPI theo thị trường và sản phẩm</span>
           </div>
         </div>
         <div class="scope-card">
-          <span>Current workspace</span>
-          <strong>Internal attribution ops</strong>
-          <small id="shellMode">Demo mode</small>
+          <span>Không gian làm việc</span>
+          <strong>Đối soát CAPI nội bộ</strong>
+          <small id="shellMode">Hệ thống live</small>
         </div>
         <nav class="nav">
-          <div class="nav-label">Operate</div>
-          <button data-route="/dashboard" data-nav="home" class="active"><span>01</span>Tong quan</button>
-          <button data-route="/dashboard/analytics" data-nav="analytics"><span>02</span>Doi soat CAPI</button>
-          <button data-route="/dashboard/markets" data-nav="markets"><span>03</span>Thi truong</button>
-          <button data-route="/dashboard/products" data-nav="products"><span>04</span>San pham</button>
+          <div class="nav-label">Vận hành</div>
+          <button data-route="/dashboard" data-nav="home" class="active"><span>01</span>Tổng quan</button>
+          <button data-route="/dashboard/analytics" data-nav="analytics"><span>02</span>Đối soát CAPI</button>
+          <button data-route="/dashboard/markets" data-nav="markets"><span>03</span>Thị trường</button>
+          <button data-route="/dashboard/products" data-nav="products"><span>04</span>Sản phẩm</button>
         </nav>
         <div class="auth-box">
           <div class="auth-title">
-            <strong>Access</strong>
-            <small id="authBadge">Not signed in</small>
+            <strong>Truy cập</strong>
+            <small id="authBadge">Chưa đăng nhập</small>
           </div>
-          <label>API/User token</label>
-          <input id="tokenInput" type="password" placeholder="Paste bearer token">
-          <button id="saveToken">Use token</button>
-          <div class="divider"></div>
-          <label>Login</label>
-          <input id="usernameInput" type="text" placeholder="username">
-          <input id="passwordInput" type="password" placeholder="password">
-          <div class="auth-actions">
-            <button id="loginBtn">Login</button>
-            <button id="demoBtn" class="ghost">Demo</button>
+          <div id="sessionUser" class="session-user hidden">
+            <span>Đang đăng nhập</span>
+            <strong id="sessionUserName">-</strong>
+            <small id="sessionUserRole">-</small>
+            <small id="sessionExpires">-</small>
           </div>
+          <button id="logoutBtn" class="ghost hidden">Đăng xuất</button>
           <p id="authState"></p>
         </div>
       </aside>
@@ -51,27 +47,27 @@
       <main class="main">
         <header class="topbar">
           <div>
-            <div class="breadcrumb" id="breadcrumb">Workspace / Overview</div>
-            <h1 id="screenTitle">Overview</h1>
-            <p id="screenSubtitle">Executive view across accessible markets and products.</p>
+            <div class="breadcrumb" id="breadcrumb">Hệ thống / Tổng quan</div>
+            <h1 id="screenTitle">Tổng quan</h1>
+            <p id="screenSubtitle">Tổng quan các thị trường và sản phẩm được phân quyền.</p>
           </div>
           <div class="date-controls">
             <label>
-              <span>From</span>
+              <span>Từ ngày</span>
               <input id="dateFrom" placeholder="dd-mm-yyyy">
             </label>
             <label>
-              <span>To</span>
+              <span>Đến ngày</span>
               <input id="dateTo" placeholder="dd-mm-yyyy">
             </label>
-            <button id="refreshBtn">Refresh</button>
+            <button id="refreshBtn">Tải lại</button>
           </div>
         </header>
 
         <section class="system-strip">
-          <div><span>Public endpoint</span><strong>POST /v1/markets/{market_key}/products/{product_key}/capi/logs</strong></div>
-          <div><span>Retention</span><strong>Raw detail 30 days</strong></div>
-          <div><span>Compare</span><strong>Products / Time / Error rate</strong></div>
+          <div><span>Endpoint nhận log</span><strong>POST /v1/markets/{market_key}/products/{product_key}/capi/logs</strong></div>
+          <div><span>Lưu chi tiết</span><strong>Payload gốc 30 ngày</strong></div>
+          <div><span>Đối soát</span><strong>Sản phẩm / Thời gian / Tỷ lệ lỗi</strong></div>
         </section>
 
         <section id="content"></section>
@@ -81,13 +77,13 @@
     <div id="modal" class="modal hidden">
       <div class="modal-panel">
         <div class="modal-head">
-          <h2>Event detail</h2>
-          <button id="closeModal">Close</button>
+          <h2>Chi tiết sự kiện</h2>
+          <button id="closeModal">Đóng</button>
         </div>
         <div id="modalBody"></div>
       </div>
     </div>
 
-    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260518-remember-login"></script>
+    <script type="module" src="/dashboard-assets/dashboard/app.mjs?v=20260518-live-auth-logout"></script>
   </body>
 </html>

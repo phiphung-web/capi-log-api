@@ -138,7 +138,7 @@ function drawSeriesChart(canvasId, rawSeries, type = 'line') {
   if (lines.length === 0) {
     ctx.fillStyle = '#667085';
     ctx.font = '13px Inter, system-ui, sans-serif';
-    ctx.fillText('No chart data for selected scope.', bounds.left, height / 2);
+    ctx.fillText('Chưa có dữ liệu biểu đồ trong phạm vi đã chọn.', bounds.left, height / 2);
     return;
   }
 

@@ -32,7 +32,7 @@ function fallbackReport() {
     date_from: '',
     date_to: '',
     ads_manager_reported_events: null,
-    ads_manager_note: 'Live reconciliation endpoint has not loaded yet.',
+    ads_manager_note: 'Endpoint đối soát live chưa tải xong.',
     summary: {
       sent_events: sent,
       meta_received_events: metaReceived,
@@ -52,7 +52,7 @@ function fallbackReport() {
 }
 
 function issueMessage(issue) {
-  return issue.error_message || issue.fbtrace_id || 'Meta did not report a received event for this log.';
+  return issue.error_message || issue.fbtrace_id || 'Meta chưa ghi nhận event nhận thành công cho log này.';
 }
 
 export function renderAnalytics() {
@@ -60,42 +60,42 @@ export function renderAnalytics() {
   const summary = report.summary || {};
 
   setShell(
-    'Doi soat CAPI',
-    'Bao cao giup ads xem backend da gui bao nhieu event, Meta CAPI da nhan bao nhieu, va lech o dau.',
-    'Workspace / Doi soat CAPI'
+    'Đối soát CAPI',
+    'Báo cáo giúp ads xem backend đã gửi bao nhiêu event, Meta CAPI đã nhận bao nhiêu và lệch ở đâu.',
+    'Hệ thống / Đối soát CAPI'
   );
 
   content().innerHTML = `
     <section class="ops-hero">
       <div>
-        <span class="eyebrow">Ads reconciliation</span>
-        <h2>Backend sent vs Meta CAPI received</h2>
-        <p>Use this screen to check whether CAPI logs from backend are being accepted by Meta. Product, event, source, campaign/ref, and recent issue tables show where ads should investigate first.</p>
+        <span class="eyebrow">Đối soát dữ liệu ads</span>
+        <h2>Backend đã gửi so với Meta CAPI đã nhận</h2>
+        <p>Màn hình này dùng để kiểm tra log CAPI từ backend có được Meta chấp nhận hay không. Các bảng theo sản phẩm, sự kiện, nguồn, campaign/ref và log lỗi gần nhất cho biết ads nên kiểm tra điểm nào trước.</p>
       </div>
       <div class="ops-score">
-        <span>Match rate</span>
+        <span>Tỷ lệ khớp</span>
         <strong>${pct(summary.match_rate)}</strong>
       </div>
     </section>
 
     ${metrics([
-      { label: 'Backend sent', value: summary.sent_events || 0, note: 'Log rows in date range' },
-      { label: 'Meta received', value: summary.meta_received_events || 0, note: 'Sum of events_received' },
-      { label: 'Gap', value: signedGap(summary.mismatch_events), note: 'Sent minus Meta received' },
-      { label: 'Error / unknown', value: Number(summary.error_logs || 0) + Number(summary.unknown_logs || 0), note: `${pct(summary.issue_rate)} of logs` },
-      { label: 'Unique users', value: summary.unique_users || 0, note: 'Distinct user_id in logs' },
+      { label: 'Backend đã gửi', value: summary.sent_events || 0, note: 'Số log trong khoảng ngày' },
+      { label: 'Meta đã nhận', value: summary.meta_received_events || 0, note: 'Tổng events_received' },
+      { label: 'Chênh lệch', value: signedGap(summary.mismatch_events), note: 'Backend gửi trừ Meta nhận' },
+      { label: 'Lỗi / chưa rõ', value: Number(summary.error_logs || 0) + Number(summary.unknown_logs || 0), note: `${pct(summary.issue_rate)} tổng log` },
+      { label: 'User duy nhất', value: summary.unique_users || 0, note: 'Đếm theo user_id' },
     ])}
 
     <section class="panel">
-      <div class="panel-head"><h2>Ads Manager comparison</h2><span class="muted">Manual import needed</span></div>
+      <div class="panel-head"><h2>So sánh với Ads Manager</h2><span class="muted">Cần import dữ liệu</span></div>
       <div class="panel-body reconciliation-note">
         <div>
-          <strong>Current basis</strong>
-          <span>Backend logs are compared with Meta CAPI API response fields: meta_status and events_received.</span>
+          <strong>Cơ sở hiện tại</strong>
+          <span>Hệ thống đang so sánh log backend với phản hồi API từ Meta CAPI qua các trường meta_status và events_received.</span>
         </div>
         <div>
-          <strong>Next data source</strong>
-          <span>${esc(report.ads_manager_note || 'Connect Ads Manager metrics to compare against campaign UI totals.')}</span>
+          <strong>Nguồn dữ liệu tiếp theo</strong>
+          <span>${esc(report.ads_manager_note || 'Kết nối hoặc import số liệu Ads Manager để so với số hiển thị trên campaign.')}</span>
         </div>
       </div>
     </section>
@@ -103,7 +103,7 @@ export function renderAnalytics() {
     <div style="height:14px"></div>
     <div class="split wide-left">
       <section>
-        ${table(['Product', 'Sent', 'Meta received', 'Gap', 'Issues', 'Health'], report.products.map((row) => `
+        ${table(['Sản phẩm', 'Đã gửi', 'Meta nhận', 'Chênh lệch', 'Vấn đề', 'Sức khỏe'], report.products.map((row) => `
           <tr>
             <td>
               <span class="link" data-product="${esc(row.market_key)}:${esc(row.product_key)}">${esc(row.product_display_name || row.product_key)}</span>
@@ -118,7 +118,7 @@ export function renderAnalytics() {
         `))}
       </section>
       <section>
-        ${table(['Event', 'Sent', 'Received', 'Gap', 'Issue rate'], report.events.map((row) => `
+        ${table(['Sự kiện', 'Đã gửi', 'Meta nhận', 'Chênh lệch', 'Tỷ lệ vấn đề'], report.events.map((row) => `
           <tr>
             <td><strong>${esc(row.event_name || '-')}</strong></td>
             <td>${esc(row.sent_events || 0)}</td>
@@ -133,7 +133,7 @@ export function renderAnalytics() {
     <div style="height:14px"></div>
     <div class="split wide-left">
       <section>
-        ${table(['Campaign / ref', 'Sent', 'Received', 'Gap', 'Issues'], report.campaigns.map((row) => `
+        ${table(['Campaign / ref', 'Đã gửi', 'Meta nhận', 'Chênh lệch', 'Vấn đề'], report.campaigns.map((row) => `
           <tr>
             <td><strong>${esc(row.campaign || '-')}</strong></td>
             <td>${esc(row.sent_events || 0)}</td>
@@ -144,7 +144,7 @@ export function renderAnalytics() {
         `))}
       </section>
       <section>
-        ${table(['Ref / Pub / Channel', 'Sent', 'Received', 'Gap', 'Issues'], report.sources.map((row) => `
+        ${table(['Ref / Pub / Channel', 'Đã gửi', 'Meta nhận', 'Chênh lệch', 'Vấn đề'], report.sources.map((row) => `
           <tr>
             <td>
               <strong>${esc(row.ref || '-')}</strong>
@@ -160,7 +160,7 @@ export function renderAnalytics() {
     </div>
 
     <div style="height:14px"></div>
-    ${table(['Time', 'Market / Product', 'Event', 'User / Txn', 'Status', 'Reason'], (report.issues || []).map((issue) => `
+    ${table(['Thời gian', 'Thị trường / Sản phẩm', 'Sự kiện', 'User / Giao dịch', 'Trạng thái', 'Lý do'], (report.issues || []).map((issue) => `
       <tr>
         <td>${fromIsoDate(issue.created_at)}<div class="muted">${new Date(issue.created_at).toLocaleTimeString()}</div></td>
         <td>${esc(issue.market_key)} / ${esc(issue.product_key)}</td>

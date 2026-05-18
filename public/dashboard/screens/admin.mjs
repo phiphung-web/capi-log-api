@@ -3,35 +3,43 @@ import { metrics } from '../components.mjs';
 import { setShell } from '../shell.mjs';
 import { state } from '../state.mjs';
 
+function roleLabel(role) {
+  return {
+    admin: 'Quản trị viên',
+    manager: 'Quản lý',
+    viewer: 'Người xem',
+  }[role] || role || '-';
+}
+
 export function renderAdmin() {
-  setShell('Admin', 'System administration for accounts, access, and maintenance tasks.', 'Workspace / Admin');
+  setShell('Admin', 'Quản trị hệ thống cho tài khoản, quyền truy cập và tác vụ bảo trì.', 'Hệ thống / Admin');
 
   content().innerHTML = `
     ${metrics([
-      { label: 'Role', value: state.auth?.role || 'demo', note: 'Current session' },
-      { label: 'Markets', value: state.markets.length, note: 'Permission scopes' },
-      { label: 'Products', value: state.products.length, note: 'Product scopes' },
-      { label: 'Raw retention', value: '30d', note: 'Detailed event payload' },
-      { label: 'Mode', value: state.demoMode ? 'Demo' : 'Live', note: 'Data source' },
+      { label: 'Vai trò', value: roleLabel(state.auth?.role), note: 'Phiên hiện tại' },
+      { label: 'Thị trường', value: state.markets.length, note: 'Phạm vi được phân quyền' },
+      { label: 'Sản phẩm', value: state.products.length, note: 'Phạm vi sản phẩm' },
+      { label: 'Lưu raw', value: '30 ngày', note: 'Payload sự kiện chi tiết' },
+      { label: 'Chế độ', value: 'Live', note: 'Nguồn dữ liệu' },
     ])}
     <section class="entity-grid">
       <article class="entity-card">
         <div class="entity-top">
-          <div class="entity-title"><strong>Users</strong><span>Manage username/password accounts and roles.</span></div>
+          <div class="entity-title"><strong>Người dùng</strong><span>Quản lý tài khoản username/password và vai trò.</span></div>
         </div>
-        <button class="primary" data-route="/dashboard/admin/users">Open users</button>
+        <button class="primary" data-route="/dashboard/admin/users">Mở người dùng</button>
       </article>
       <article class="entity-card">
         <div class="entity-top">
-          <div class="entity-title"><strong>Access scopes</strong><span>Grant users visibility by market and product.</span></div>
+          <div class="entity-title"><strong>Phạm vi truy cập</strong><span>Cấp quyền xem dữ liệu theo thị trường và sản phẩm.</span></div>
         </div>
-        <button data-route="/dashboard/admin/users">Manage access</button>
+        <button data-route="/dashboard/admin/users">Quản lý quyền</button>
       </article>
       <article class="entity-card">
         <div class="entity-top">
-          <div class="entity-title"><strong>Maintenance</strong><span>Aggregate daily metrics and purge raw log detail after retention.</span></div>
+          <div class="entity-title"><strong>Bảo trì</strong><span>Tổng hợp số liệu theo ngày và xóa raw log sau thời gian lưu trữ.</span></div>
         </div>
-        <button disabled>Scheduled server job</button>
+        <button disabled>Job server đã lên lịch</button>
       </article>
     </section>
   `;

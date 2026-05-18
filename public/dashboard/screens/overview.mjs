@@ -32,60 +32,60 @@ export function renderOverview() {
   const issueRate = percent(issueEvents, totalEvents);
   const errorRate = percent(errorEvents, totalEvents);
 
-  setShell('Trang chủ', 'Tổng quan dữ liệu đã nhận, trạng thái xử lý và luồng Market / Product / Log.', 'Workspace / Trang chủ');
+  setShell('Tổng quan', 'Tổng quan dữ liệu đã nhận, trạng thái xử lý và luồng Thị trường / Sản phẩm / Log.', 'Hệ thống / Tổng quan');
 
   content().innerHTML = `
     <section class="ops-hero">
       <div>
-        <span class="eyebrow">Live intake</span>
-        <h2>Market / Product / Meta CAPI log flow</h2>
-        <p>Request từ đối tác được xác thực, bóc dữ liệu Meta callback, đồng bộ market/product, lưu raw payload và hiển thị báo cáo theo thời gian.</p>
+        <span class="eyebrow">Luồng nhận log live</span>
+        <h2>Luồng log Thị trường / Sản phẩm / Meta CAPI</h2>
+        <p>Request từ backend được xác thực, bóc dữ liệu callback Meta, đồng bộ market/product, lưu raw payload và hiển thị báo cáo theo thời gian.</p>
       </div>
       <div class="ops-score">
-        <span>Meta received</span>
+        <span>Meta đã nhận</span>
         <strong>${receiveRate}</strong>
-        <p class="muted mini">${numberValue(receivedEvents)} / ${numberValue(totalEvents)} events accepted</p>
+        <p class="muted mini">${numberValue(receivedEvents)} / ${numberValue(totalEvents)} sự kiện được chấp nhận</p>
       </div>
     </section>
 
     <section class="workflow ops-flow">
-      <article class="step-card"><span>01</span><strong>Authenticate</strong><p>Validate Bearer or X-API-Token before any log is accepted.</p></article>
-      <article class="step-card"><span>02</span><strong>Parse payload</strong><p>Read metadata or raw Meta request.data[0] and extract event fields.</p></article>
-      <article class="step-card"><span>03</span><strong>Sync catalog</strong><p>Create or update market and product keys detected from the endpoint.</p></article>
-      <article class="step-card"><span>04</span><strong>Report</strong><p>Power overview, product detail, logs, trends, and comparison views.</p></article>
+      <article class="step-card"><span>01</span><strong>Xác thực</strong><p>Kiểm tra Bearer token hoặc X-API-Token trước khi nhận log.</p></article>
+      <article class="step-card"><span>02</span><strong>Đọc payload</strong><p>Đọc metadata hoặc raw Meta request.data[0] và lấy các trường sự kiện.</p></article>
+      <article class="step-card"><span>03</span><strong>Đồng bộ danh mục</strong><p>Tạo hoặc cập nhật market và product key phát hiện từ endpoint.</p></article>
+      <article class="step-card"><span>04</span><strong>Báo cáo</strong><p>Cấp dữ liệu cho tổng quan, chi tiết sản phẩm, log, xu hướng và so sánh.</p></article>
     </section>
 
     ${metrics([
-      { label: 'Total logs', value: numberValue(totalEvents), note: 'All events in selected range' },
-      { label: 'Meta received', value: numberValue(receivedEvents), note: `${receiveRate} accepted` },
-      { label: 'Needs review', value: numberValue(issueEvents), note: `${issueRate} error or unknown` },
-      { label: 'Errors', value: numberValue(errorEvents), note: `${errorRate} failed response` },
-      { label: 'Unique users', value: numberValue(overview.unique_users ?? 0), note: 'Distinct user_id' },
-      { label: 'Total value', value: Number(overview.total_value || 0).toFixed(2), note: 'Sum of value field' },
+      { label: 'Tổng log', value: numberValue(totalEvents), note: 'Tất cả sự kiện trong khoảng đã chọn' },
+      { label: 'Meta đã nhận', value: numberValue(receivedEvents), note: `${receiveRate} được chấp nhận` },
+      { label: 'Cần rà soát', value: numberValue(issueEvents), note: `${issueRate} lỗi hoặc chưa rõ` },
+      { label: 'Lỗi', value: numberValue(errorEvents), note: `${errorRate} phản hồi lỗi` },
+      { label: 'User duy nhất', value: numberValue(overview.unique_users ?? 0), note: 'Theo user_id' },
+      { label: 'Tổng giá trị', value: Number(overview.total_value || 0).toFixed(2), note: 'Tổng trường value' },
     ])}
 
     <section class="health-board">
-      <article><span>Markets</span><strong>${numberValue(overview.total_markets ?? state.markets.length)} active data scopes</strong></article>
-      <article><span>Products</span><strong>${numberValue(overview.total_products ?? state.products.length)} visible products</strong></article>
-      <article><span>Unknown</span><strong>${numberValue(unknownEvents)} events need response check</strong></article>
-      <article><span>Pipeline</span><strong>Auth -> Parse -> Catalog -> Report</strong></article>
+      <article><span>Thị trường</span><strong>${numberValue(overview.total_markets ?? state.markets.length)} phạm vi dữ liệu đang hoạt động</strong></article>
+      <article><span>Sản phẩm</span><strong>${numberValue(overview.total_products ?? state.products.length)} sản phẩm đang hiển thị</strong></article>
+      <article><span>Chưa rõ</span><strong>${numberValue(unknownEvents)} sự kiện cần kiểm tra phản hồi</strong></article>
+      <article><span>Pipeline</span><strong>Xác thực -> Đọc payload -> Danh mục -> Báo cáo</strong></article>
     </section>
 
     <div class="split">
       <section class="panel">
-        <div class="panel-head"><h2>Market health</h2><button class="primary" data-route="/dashboard/markets">Open markets</button></div>
+        <div class="panel-head"><h2>Sức khỏe thị trường</h2><button class="primary" data-route="/dashboard/markets">Mở thị trường</button></div>
         <div class="panel-body">${marketCards(state.markets)}</div>
       </section>
       <section class="panel">
-        <div class="panel-head"><h2>Compare products</h2><button data-route="${esc(productsComparePath())}">Open compare</button></div>
+        <div class="panel-head"><h2>So sánh sản phẩm</h2><button data-route="${esc(productsComparePath())}">Mở so sánh</button></div>
         <div class="panel-body">
           <div class="chart-toolbar">
             <label>
-              <span>Chart type</span>
+              <span>Kiểu biểu đồ</span>
               <select id="overviewChartType">
-                <option value="area">Area</option>
-                <option value="line">Line</option>
-                <option value="bar">Bar</option>
+                <option value="area">Vùng</option>
+                <option value="line">Đường</option>
+                <option value="bar">Cột</option>
               </select>
             </label>
           </div>
@@ -96,7 +96,7 @@ export function renderOverview() {
     </div>
     <div style="height:14px"></div>
     <div class="split wide-left">
-      ${table(['Latest log', 'Market / Product', 'Status', 'User / Txn', 'Ref / Pub', 'Trace'], recentLogs.map((log) => `
+      ${table(['Log mới nhất', 'Thị trường / Sản phẩm', 'Trạng thái', 'User / Giao dịch', 'Ref / Pub', 'Trace'], recentLogs.map((log) => `
         <tr>
           <td>${fromIsoDate(log.created_at)}<div class="muted mini">${new Date(log.created_at).toLocaleTimeString()}</div></td>
           <td>${esc(log.market_display_name || log.market_key)} / ${esc(log.product_display_name || log.product_key)}<div class="muted mono">${esc(log.market_key)} / ${esc(log.product_key)}</div></td>
@@ -106,7 +106,7 @@ export function renderOverview() {
           <td class="mono">${esc(log.fbtrace_id || '-')}</td>
         </tr>
       `))}
-      ${table(['Product', 'Market', 'Events', 'Received', 'Errors', 'Status'], topProducts.map((product) => `
+      ${table(['Sản phẩm', 'Thị trường', 'Sự kiện', 'Meta nhận', 'Lỗi', 'Trạng thái'], topProducts.map((product) => `
         <tr>
           <td><span class="link" data-route="${esc(productPath(product.market_key, product.product_key))}">${esc(product.display_name || product.product_key)}</span><div class="muted mono">${esc(product.product_key)}</div></td>
           <td class="mono">${esc(product.market_key)}</td>

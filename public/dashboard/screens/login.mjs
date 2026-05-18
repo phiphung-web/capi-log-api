@@ -2,7 +2,7 @@ import { $, content } from '../dom.mjs';
 import { setShell } from '../shell.mjs';
 
 export function renderLogin(ctx) {
-  setShell('Login', 'Sign in with username and password to access live CAPI log data.', 'Workspace / Login');
+  setShell('Đăng nhập', 'Đăng nhập bằng tài khoản được cấp để xem dữ liệu CAPI live.', 'Hệ thống / Đăng nhập');
 
   content().innerHTML = `
     <section class="login-page">
@@ -12,37 +12,37 @@ export function renderLogin(ctx) {
             <div class="brand-mark">CP</div>
             <div>
               <strong>CAPI Log Platform</strong>
-              <span>Internal attribution operations</span>
+              <span>Hệ thống đối soát CAPI nội bộ</span>
             </div>
           </div>
-          <h1>Control Meta CAPI logs by market and product.</h1>
-          <p>Review callback health, Meta response status, attribution fields, and product-level event detail from one internal console.</p>
+          <h1>Theo dõi log Meta CAPI theo thị trường và sản phẩm.</h1>
+          <p>Xem tình trạng callback, phản hồi từ Meta, dữ liệu attribution và chi tiết từng sự kiện trong một hệ thống nội bộ.</p>
           <div class="login-flow">
-            <div><span>01</span><strong>Market</strong><small>Country or traffic scope</small></div>
-            <div><span>02</span><strong>Product</strong><small>Game build or property</small></div>
-            <div><span>03</span><strong>Logs</strong><small>Event audit trail</small></div>
+            <div><span>01</span><strong>Thị trường</strong><small>Quốc gia hoặc phạm vi traffic</small></div>
+            <div><span>02</span><strong>Sản phẩm</strong><small>Game, app hoặc landing</small></div>
+            <div><span>03</span><strong>Log</strong><small>Lịch sử sự kiện chi tiết</small></div>
           </div>
         </aside>
 
         <div class="login-card panel">
           <div class="panel-head">
-            <h2>Sign in</h2>
-            <span class="muted">Username / password</span>
+            <h2>Đăng nhập</h2>
+            <span class="muted">Username / mật khẩu</span>
           </div>
           <div class="panel-body">
             <div class="form-grid">
               <div class="full"><label>Username</label><input id="pageUsername" autocomplete="username" placeholder="admin"></div>
-              <div class="full"><label>Password</label><input id="pagePassword" autocomplete="current-password" type="password" placeholder="password"></div>
+              <div class="full"><label>Mật khẩu</label><input id="pagePassword" autocomplete="current-password" type="password" placeholder="mật khẩu"></div>
               <label class="full check-line">
                 <input id="rememberLogin" type="checkbox">
                 <span>
-                  <strong>Remember login</strong>
-                  <small>Keep this session after closing the browser.</small>
+                  <strong>Ghi nhớ đăng nhập</strong>
+                  <small>Giữ phiên sau khi đóng trình duyệt.</small>
                 </span>
               </label>
             </div>
             <div class="actions">
-              <button id="pageLogin" class="primary">Login</button>
+              <button id="pageLogin" class="primary">Đăng nhập</button>
             </div>
             <p id="pageLoginState" class="muted mini"></p>
           </div>
@@ -53,8 +53,6 @@ export function renderLogin(ctx) {
 
   $('pageLogin').onclick = async () => {
     $('pageLoginState').textContent = '';
-    $('usernameInput').value = $('pageUsername').value;
-    $('passwordInput').value = $('pagePassword').value;
     try {
       await ctx.login(
         $('pageUsername').value,
@@ -62,7 +60,7 @@ export function renderLogin(ctx) {
         $('rememberLogin').checked
       );
     } catch (error) {
-      $('pageLoginState').textContent = 'Login failed. Check username and password.';
+      $('pageLoginState').textContent = 'Đăng nhập thất bại. Vui lòng kiểm tra username và mật khẩu.';
     }
   };
 

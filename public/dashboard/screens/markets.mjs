@@ -6,15 +6,15 @@ import { summarize } from '../utils.mjs';
 
 export function renderMarkets() {
   const summary = summarize(state.markets);
-  setShell('Markets', 'Top-level business scopes. Open a market to review its products.', 'Workspace / Markets');
+  setShell('Thị trường', 'Phạm vi dữ liệu cấp cao. Mở từng thị trường để xem sản phẩm và sức khỏe CAPI.', 'Hệ thống / Thị trường');
 
   content().innerHTML = `
     ${metrics([
-      { label: 'Markets', value: state.markets.length, note: 'Accessible scopes' },
-      { label: 'Products', value: state.products.length, note: 'All visible products' },
-      { label: 'Active markets', value: state.markets.filter((market) => market.status === 'active').length, note: 'Ready for callbacks' },
-      { label: 'Total logs', value: summary.total, note: 'Selected range' },
-      { label: 'Errors', value: summary.errors, note: 'Needs review' },
+      { label: 'Thị trường', value: state.markets.length, note: 'Phạm vi được phân quyền' },
+      { label: 'Sản phẩm', value: state.products.length, note: 'Tất cả sản phẩm đang thấy' },
+      { label: 'Đang hoạt động', value: state.markets.filter((market) => market.status === 'active').length, note: 'Sẵn sàng nhận callback' },
+      { label: 'Tổng log', value: summary.total, note: 'Khoảng đã chọn' },
+      { label: 'Lỗi', value: summary.errors, note: 'Cần rà soát' },
     ])}
     ${marketCards(state.markets)}
     ${marketRows(state.markets)}

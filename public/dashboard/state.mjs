@@ -1,14 +1,16 @@
-import { demo } from './demoData.mjs';
+const storedToken = localStorage.getItem('capi_token') || sessionStorage.getItem('capi_token') || '';
 
 export const state = {
   screen: 'overview',
-  token: localStorage.getItem('capi_token') || sessionStorage.getItem('capi_token') || '',
+  token: storedToken,
   auth: null,
+  authChecked: !storedToken,
+  authLoading: Boolean(storedToken),
   overview: null,
   reconciliation: null,
-  markets: [...demo.markets],
-  products: [...demo.products],
-  logs: [...demo.logs],
+  markets: [],
+  products: [],
+  logs: [],
   selectedMarket: null,
   selectedProduct: null,
   selectedLog: null,
@@ -18,11 +20,14 @@ export const state = {
   overviewChartType: 'area',
   productCompareChartType: 'line',
   productCompareMetric: 'total_events',
-  demoMode: true,
 };
 
 export function setToken(token, remember = true) {
   state.token = token;
+  state.auth = null;
+  state.authChecked = !token;
+  state.authLoading = Boolean(token);
+
   if (token) {
     if (remember) {
       localStorage.setItem('capi_token', token);
@@ -37,14 +42,12 @@ export function setToken(token, remember = true) {
   }
 }
 
-export function useDemoData() {
-  state.auth = null;
+export function clearLiveData() {
   state.overview = null;
   state.reconciliation = null;
-  state.demoMode = true;
-  state.markets = [...demo.markets];
-  state.products = [...demo.products];
-  state.logs = [...demo.logs];
+  state.markets = [];
+  state.products = [];
+  state.logs = [];
   state.productFilters = {};
   state.compareSelection = [];
   state.overviewChartType = 'area';
@@ -54,10 +57,11 @@ export function useDemoData() {
 
 export function useLiveData({ auth, overview, reconciliation, markets, products, logs }) {
   state.auth = auth;
+  state.authChecked = true;
+  state.authLoading = false;
   state.overview = overview || null;
   state.reconciliation = reconciliation || null;
-  state.markets = markets;
-  state.products = products;
-  state.logs = logs;
-  state.demoMode = false;
+  state.markets = markets || [];
+  state.products = products || [];
+  state.logs = logs || [];
 }
