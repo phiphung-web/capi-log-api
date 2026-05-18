@@ -14,6 +14,9 @@ export const state = {
   filters: {},
   productFilters: {},
   compareSelection: [],
+  overviewChartType: 'area',
+  productCompareChartType: 'line',
+  productCompareMetric: 'total_events',
   demoMode: true,
 };
 
@@ -35,6 +38,9 @@ export function useDemoData() {
   state.logs = [...demo.logs];
   state.productFilters = {};
   state.compareSelection = [];
+  state.overviewChartType = 'area';
+  state.productCompareChartType = 'line';
+  state.productCompareMetric = 'total_events';
 }
 
 export function useLiveData({ auth, overview, markets, products, logs }) {

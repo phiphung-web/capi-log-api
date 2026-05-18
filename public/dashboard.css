@@ -352,11 +352,102 @@ body.login-route .main {
 
 .grid { display: grid; gap: 14px; }
 
+.ops-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.ops-hero > div {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  box-shadow: var(--shadow-soft);
+}
+
+.ops-hero h2 {
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.ops-hero p {
+  max-width: 780px;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.ops-score {
+  display: grid;
+  align-content: center;
+}
+
+.ops-score span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.ops-score strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 42px;
+  line-height: 1;
+  color: var(--accent-strong);
+}
+
 .workflow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 16px;
+}
+
+.ops-flow .step-card {
+  min-height: 120px;
+}
+
+.health-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: -2px 0 16px;
+}
+
+.health-board article {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.health-board span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.health-board strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .step-card {
@@ -430,6 +521,10 @@ body.login-route .main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
   gap: 14px;
+}
+
+.split.wide-left {
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr);
 }
 
 .panel { overflow: hidden; }
@@ -572,6 +667,27 @@ tbody tr:hover { background: #eef9f7; }
 .status.admin { color: #7c3aed; background: #f1eafe; }
 
 .chart { width: 100%; height: 300px; }
+
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.chart-toolbar label {
+  width: min(180px, 100%);
+}
+
+.chart-toolbar label span {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.chart-toolbar select {
+  min-height: 36px;
+}
 
 .legend {
   display: flex;
@@ -770,7 +886,7 @@ pre {
   .entity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .split { grid-template-columns: 1fr; }
+  .split, .split.wide-left, .health-board { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 980px) {
@@ -782,6 +898,7 @@ pre {
     border-bottom: 1px solid rgba(255,255,255,.08);
   }
   .date-controls, .system-strip { min-width: 0; grid-template-columns: 1fr; }
+  .ops-hero { grid-template-columns: 1fr; }
   .topbar { display: grid; }
   .login-shell { grid-template-columns: 1fr; }
   .login-copy { min-height: auto; }

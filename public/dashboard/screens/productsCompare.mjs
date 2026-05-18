@@ -57,6 +57,29 @@ function renderResults(payload) {
     <section class="panel">
       <div class="panel-head"><h2>Trend by product</h2><span class="muted">${esc(payload.date_from)} to ${esc(payload.date_to)}</span></div>
       <div class="panel-body">
+        <div class="chart-toolbar">
+          <label>
+            <span>Metric</span>
+            <select id="productChartMetric">
+              <option value="total_events">Total events</option>
+              <option value="received_events">Meta received</option>
+              <option value="error_events">Errors</option>
+              <option value="unknown_events">Unknown</option>
+              <option value="unique_users">Unique users</option>
+              <option value="total_value">Total value</option>
+              <option value="purchase_events">Purchases</option>
+              <option value="total_deposit_amount">Deposit amount</option>
+            </select>
+          </label>
+          <label>
+            <span>Chart type</span>
+            <select id="productChartType">
+              <option value="line">Line</option>
+              <option value="area">Area</option>
+              <option value="bar">Bar</option>
+            </select>
+          </label>
+        </div>
         <canvas id="productCompareChart" class="chart"></canvas>
         <div class="legend">
           ${products.map((product, index) => `<span style="--dot:${['#0f766e', '#b42318', '#9a6700', '#2563eb', '#7c3aed', '#475569'][index % 6]}">${esc(product.product_display_name || product.product_key)}</span>`).join('')}
@@ -91,7 +114,18 @@ function renderResults(payload) {
     `))}
   `;
 
-  drawProductSeriesChart(products, 'total_events');
+  const drawSelectedChart = () => {
+    state.productCompareMetric = $('productChartMetric').value;
+    state.productCompareChartType = $('productChartType').value;
+    drawProductSeriesChart(products, state.productCompareMetric, state.productCompareChartType);
+  };
+
+  $('productChartMetric').value = state.productCompareMetric || 'total_events';
+  $('productChartType').value = state.productCompareChartType || 'line';
+  $('productChartMetric').onchange = drawSelectedChart;
+  $('productChartType').onchange = drawSelectedChart;
+  drawSelectedChart();
+
   document.querySelectorAll('[data-route]').forEach((el) => {
     el.onclick = () => go(el.dataset.route);
   });
