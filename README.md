@@ -2,7 +2,7 @@
 
 Node.js + Express + PostgreSQL API for receiving callback logs from a partner backend after it sends Meta Conversions API events.
 
-This service stores the raw callback payload, Meta request payload, Meta response, transaction fields, attribution fields, request IP, and request User-Agent. It does not include a dashboard or admin authentication in this version.
+This service stores the raw callback payload, Meta request payload, Meta response, transaction fields, attribution fields, request IP, and request User-Agent. It also includes a management dashboard with username/password login, role-based access, product/market catalogs, and analytics views.
 
 ## 1. Install dependencies
 
@@ -22,6 +22,9 @@ Edit `.env`:
 APP_PORT=4005
 NODE_ENV=development
 API_TOKEN=CHANGE_THIS_SECRET_TOKEN
+APP_SECRET=CHANGE_THIS_INTERNAL_APP_SECRET
+SESSION_TTL_SECONDS=28800
+REMEMBER_SESSION_TTL_SECONDS=2592000
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -64,6 +67,13 @@ Production-style local run:
 npm start
 ```
 
+Run project checks:
+
+```bash
+npm run check
+npm test
+```
+
 Health check:
 
 ```bash
@@ -73,8 +83,12 @@ curl http://localhost:4005/health
 Dashboard:
 
 ```text
-http://localhost:4005/dashboard
+http://localhost:4005/
 ```
+
+The root domain redirects to `/dashboard/login`. The dashboard app then checks the stored session token: unauthenticated users stay on login, authenticated users are sent into the dashboard.
+
+Login sessions expire automatically. By default, normal sessions last 8 hours (`SESSION_TTL_SECONDS=28800`) and "Remember login" sessions last 30 days (`REMEMBER_SESSION_TTL_SECONDS=2592000`).
 
 ## 6. Test with curl
 
@@ -234,6 +248,8 @@ Content-Type: application/json
 Authorization: Bearer <API_TOKEN>
 ```
 
+Dashboard session tokens can read data according to the user's role and assigned market/product access. Creating CAPI logs requires the server `API_TOKEN` or a user role with write access (`admin` or `manager`).
+
 If the sending service cannot set an `Authorization` header, it can send the same token with either header:
 
 ```text
@@ -301,6 +317,15 @@ curl "https://capi-log.example.com/v1/analytics/products/compare?products=vn:len
 
 The comparison response includes totals, error rate, unique users, value, purchase/deposit fields, daily series, and breakdowns by event name, Meta status, ref, pub_id, and channel.
 
+Ads reconciliation report:
+
+```bash
+curl "https://capi-log.example.com/v1/analytics/reconciliation?date_from=2026-05-01&date_to=2026-05-14" \
+  -H "Authorization: Bearer <API_TOKEN>"
+```
+
+This report compares backend log rows against Meta CAPI response fields (`meta_status`, `events_received`) and breaks gaps down by product, event, campaign/ref, ref/pub_id/channel, and recent issue logs. To compare against Ads Manager campaign UI totals, import or connect campaign metrics as a separate data source.
+
 Update catalog metadata for admin/dashboard:
 
 ```bash
@@ -331,6 +356,7 @@ psql -U capi_user -d capi_log -h localhost -f database/migrations/001_add_produc
 psql -U capi_user -d capi_log -h localhost -f database/migrations/002_add_market_support.sql
 psql -U capi_user -d capi_log -h localhost -f database/migrations/003_create_market_product_catalog.sql
 psql -U capi_user -d capi_log -h localhost -f database/migrations/004_add_auth_access_and_metrics.sql
+psql -U capi_user -d capi_log -h localhost -f database/migrations/005_use_username_for_users.sql
 pm2 restart capi-log-api
 ```
 

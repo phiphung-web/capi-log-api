@@ -5,6 +5,6 @@ const auth = require('../middleware/auth');
 const router = express.Router({ mergeParams: true });
 
 router.get('/', auth, capiLogsController.listLogs);
-router.post('/', auth, capiLogsController.createLog);
+router.post('/', auth, auth.requireWrite, capiLogsController.createLog);
 
 module.exports = router;

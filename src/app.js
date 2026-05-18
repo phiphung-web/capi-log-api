@@ -24,6 +24,10 @@ app.use(express.json({ limit: '20mb' }));
 app.use('/dashboard-assets', express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/', (req, res) => {
+  res.redirect('/dashboard/login');
+});
+
+app.get('/v1', (req, res) => {
   res.json({
     success: true,
     name: 'capi-log-api',
@@ -63,6 +67,7 @@ app.post('/v1/admin/users', auth, auth.requireAdmin, usersController.createUser)
 app.patch('/v1/admin/users/:id', auth, auth.requireAdmin, usersController.updateUser);
 app.put('/v1/admin/users/:id/access', auth, auth.requireAdmin, usersController.updateUserAccess);
 app.get('/v1/analytics/overview', auth, analyticsController.overview);
+app.get('/v1/analytics/reconciliation', auth, analyticsController.reconciliation);
 app.get('/v1/analytics/products/compare', auth, analyticsController.productsCompare);
 app.get(
   '/v1/analytics/markets/:market_key/products/:product_key/compare',

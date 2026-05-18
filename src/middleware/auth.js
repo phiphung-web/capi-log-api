@@ -171,6 +171,7 @@ async function auth(req, res, next) {
       role: user.role,
       is_admin: user.role === 'admin',
       can_write: user.role === 'admin' || user.role === 'manager',
+      expires_at: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
       user,
     };
     return next();

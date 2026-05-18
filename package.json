@@ -4,8 +4,10 @@
   "description": "Node.js Express API for receiving and storing Meta Conversions API logs.",
   "main": "src/app.js",
   "scripts": {
+    "check": "node --check src/app.js && node --check src/controllers/analytics.controller.js && node --check src/controllers/auth.controller.js && node --check src/controllers/capiLogs.controller.js && node --check src/controllers/maintenance.controller.js && node --check src/controllers/users.controller.js && node --check src/db/pool.js && node --check src/middleware/auth.js && node --check src/routes/capiLogs.routes.js && node --check src/utils/security.js && node --check public/dashboard/api.mjs && node --check public/dashboard/app.mjs && node --check public/dashboard/chart.mjs && node --check public/dashboard/components.mjs && node --check public/dashboard/demoData.mjs && node --check public/dashboard/dom.mjs && node --check public/dashboard/modal.mjs && node --check public/dashboard/router.mjs && node --check public/dashboard/shell.mjs && node --check public/dashboard/state.mjs && node --check public/dashboard/utils.mjs && node --check public/dashboard/screens/admin.mjs && node --check public/dashboard/screens/analytics.mjs && node --check public/dashboard/screens/logDetail.mjs && node --check public/dashboard/screens/login.mjs && node --check public/dashboard/screens/logs.mjs && node --check public/dashboard/screens/marketDetail.mjs && node --check public/dashboard/screens/markets.mjs && node --check public/dashboard/screens/overview.mjs && node --check public/dashboard/screens/productDetail.mjs && node --check public/dashboard/screens/products.mjs && node --check public/dashboard/screens/productsCompare.mjs && node --check public/dashboard/screens/users.mjs && node --check test/security.test.js",
     "dev": "nodemon src/app.js",
-    "start": "node src/app.js"
+    "start": "node src/app.js",
+    "test": "node test/security.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

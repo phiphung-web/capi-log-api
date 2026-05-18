@@ -5,6 +5,10 @@ const { sanitizeUser } = require('./auth.controller');
 const ROLES = new Set(['admin', 'manager', 'viewer']);
 const STATUSES = new Set(['active', 'disabled']);
 
+function isValidSegmentKey(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_-]{2,64}$/.test(value);
+}
+
 async function listUsers(req, res) {
   try {
     const { rows } = await pool.query(
@@ -123,9 +127,37 @@ async function updateUser(req, res) {
 async function updateUserAccess(req, res) {
   const { id } = req.params;
   const { markets = [], products = [] } = req.body || {};
+
+  if (!Array.isArray(markets) || !Array.isArray(products)) {
+    return res.status(400).json({
+      success: false,
+      message: 'markets and products must be arrays.',
+    });
+  }
+
+  const invalidMarket = markets.find((marketKey) => !isValidSegmentKey(marketKey));
+  const invalidProduct = products.find(
+    (product) =>
+      !product ||
+      !isValidSegmentKey(product.market_key) ||
+      !isValidSegmentKey(product.product_key)
+  );
+
+  if (invalidMarket || invalidProduct) {
+    return res.status(400).json({
+      success: false,
+      message: 'Access keys must be 2-64 characters and contain only letters, numbers, underscores, or hyphens.',
+    });
+  }
+
   const client = await pool.connect();
 
   try {
+    const user = await client.query('SELECT id FROM capi_users WHERE id = $1 LIMIT 1', [id]);
+    if (user.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
     await client.query('BEGIN');
     await client.query('DELETE FROM capi_user_market_access WHERE user_id = $1', [id]);
     await client.query('DELETE FROM capi_user_product_access WHERE user_id = $1', [id]);

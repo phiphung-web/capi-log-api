@@ -51,12 +51,44 @@ function addAccessFilter(accessScope, filters, params, marketExpr, productExpr) 
   filters.push(clauses.length > 0 ? `(${clauses.join(' OR ')})` : '1 = 0');
 }
 
+function parseDateOnly(value, field) {
+  if (!value) return null;
+
+  const text = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return { error: `${field} must use YYYY-MM-DD format.` };
+  }
+
+  const date = new Date(`${text}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
+    return { error: `${field} is not a valid calendar date.` };
+  }
+
+  return { date };
+}
+
 function parseWindow(query) {
-  const to = query.date_to ? new Date(query.date_to) : new Date();
-  const days = Math.min(Math.max(Number(query.days) || 7, 1), 31);
-  const from = query.date_from
-    ? new Date(query.date_from)
+  const parsedTo = parseDateOnly(query.date_to, 'date_to');
+  if (parsedTo?.error) return { error: parsedTo.error };
+
+  const parsedFrom = parseDateOnly(query.date_from, 'date_from');
+  if (parsedFrom?.error) return { error: parsedFrom.error };
+
+  const to = parsedTo?.date || new Date();
+  const requestedDays = query.days === undefined ? 7 : Number(query.days);
+  if (!Number.isInteger(requestedDays)) {
+    return { error: 'days must be an integer.' };
+  }
+
+  const days = Math.min(Math.max(requestedDays, 1), 31);
+  const from = parsedFrom?.date
+    ? parsedFrom.date
     : new Date(to.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+
+  if (from > to) {
+    return { error: 'date_from must be before or equal to date_to.' };
+  }
+
   return {
     dateFrom: from.toISOString().slice(0, 10),
     dateTo: to.toISOString().slice(0, 10),
@@ -153,7 +185,12 @@ async function overview(req, res) {
     const accessScope = await getAccessScope(req);
     const filters = [];
     const params = [];
-    const { dateFrom, dateTo } = parseWindow(req.query);
+    const window = parseWindow(req.query);
+    if (window.error) {
+      return res.status(400).json({ success: false, message: window.error });
+    }
+
+    const { dateFrom, dateTo } = window;
     params.push(dateFrom, dateTo);
     filters.push("l.created_at >= $1::date AND l.created_at < ($2::date + INTERVAL '1 day')");
     addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
@@ -189,12 +226,17 @@ async function overview(req, res) {
 
 async function productCompare(req, res) {
   const { market_key: marketKey, product_key: productKey } = req.params;
-  const { dateTo, days } = parseWindow(req.query);
 
-  const accessScope = await getAccessScope(req);
-  if (!hasProductAccess(accessScope, marketKey, productKey)) {
-    return res.status(403).json({ success: false, message: 'Forbidden.' });
+  if (!validateSegmentKey(marketKey) || !validateSegmentKey(productKey)) {
+    return res.status(400).json({ success: false, message: 'Invalid market or product key.' });
   }
+
+  const window = parseWindow(req.query);
+  if (window.error) {
+    return res.status(400).json({ success: false, message: window.error });
+  }
+
+  const { dateTo, days } = window;
 
   const sql = `
     WITH ranges AS (
@@ -231,6 +273,11 @@ async function productCompare(req, res) {
   `;
 
   try {
+    const accessScope = await getAccessScope(req);
+    if (!hasProductAccess(accessScope, marketKey, productKey)) {
+      return res.status(403).json({ success: false, message: 'Forbidden.' });
+    }
+
     const { rows } = await pool.query(sql, [marketKey, productKey, dateTo, days]);
     return res.json({
       success: true,
@@ -291,7 +338,12 @@ async function productsCompare(req, res) {
     });
   }
 
-  const { dateFrom, dateTo } = parseWindow(req.query);
+  const window = parseWindow(req.query);
+  if (window.error) {
+    return res.status(400).json({ success: false, message: window.error });
+  }
+
+  const { dateFrom, dateTo } = window;
   const baseParams = [];
   const accessScope = await getAccessScope(req);
   const ctes = [
@@ -483,8 +535,222 @@ async function productsCompare(req, res) {
   }
 }
 
+function summaryFromRow(row) {
+  const sentEvents = Number(row.sent_events || 0);
+  const metaReceivedEvents = Number(row.meta_received_events || 0);
+  const errorLogs = Number(row.error_logs || 0);
+  const unknownLogs = Number(row.unknown_logs || 0);
+  const mismatchEvents = sentEvents - metaReceivedEvents;
+
+  return {
+    ...row,
+    sent_events: sentEvents,
+    meta_received_events: metaReceivedEvents,
+    mismatch_events: mismatchEvents,
+    match_rate:
+      sentEvents === 0 ? 0 : Number(((metaReceivedEvents / sentEvents) * 100).toFixed(2)),
+    issue_rate:
+      sentEvents === 0 ? 0 : Number((((errorLogs + unknownLogs) / sentEvents) * 100).toFixed(2)),
+  };
+}
+
+async function reconciliation(req, res) {
+  const window = parseWindow(req.query);
+  if (window.error) {
+    return res.status(400).json({ success: false, message: window.error });
+  }
+
+  const { dateFrom, dateTo } = window;
+  const accessScope = await getAccessScope(req);
+  const filters = [
+    "l.created_at >= $1::date",
+    "l.created_at < ($2::date + INTERVAL '1 day')",
+  ];
+  const params = [dateFrom, dateTo];
+
+  addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
+  const scopedWhere = filters.join(' AND ');
+
+  const summarySql = `
+    SELECT
+      COUNT(*)::integer AS sent_events,
+      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
+      COUNT(DISTINCT l.market_key)::integer AS markets,
+      COUNT(DISTINCT (l.market_key, l.product_key))::integer AS products,
+      COUNT(DISTINCT l.event_name)::integer AS event_types,
+      COUNT(DISTINCT l.user_id)::integer AS unique_users,
+      COALESCE(SUM(l.value), 0)::numeric AS total_value
+    FROM capi_event_logs l
+    WHERE ${scopedWhere}
+  `;
+
+  const productSql = `
+    SELECT
+      l.market_key,
+      l.product_key,
+      m.display_name AS market_display_name,
+      p.display_name AS product_display_name,
+      p.category AS product_category,
+      COUNT(*)::integer AS sent_events,
+      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
+      COUNT(DISTINCT l.user_id)::integer AS unique_users,
+      COALESCE(SUM(l.value), 0)::numeric AS total_value,
+      MAX(l.created_at) AS latest_log_at
+    FROM capi_event_logs l
+    LEFT JOIN capi_markets m
+      ON m.market_key = l.market_key
+    LEFT JOIN capi_products p
+      ON p.market_key = l.market_key
+      AND p.product_key = l.product_key
+    WHERE ${scopedWhere}
+    GROUP BY
+      l.market_key,
+      l.product_key,
+      m.display_name,
+      p.display_name,
+      p.category
+    ORDER BY
+      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      error_logs DESC,
+      sent_events DESC
+    LIMIT 50
+  `;
+
+  const eventSql = `
+    SELECT
+      l.event_name,
+      COUNT(*)::integer AS sent_events,
+      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
+      COUNT(DISTINCT l.user_id)::integer AS unique_users,
+      COALESCE(SUM(l.value), 0)::numeric AS total_value
+    FROM capi_event_logs l
+    WHERE ${scopedWhere}
+    GROUP BY l.event_name
+    ORDER BY
+      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      error_logs DESC,
+      sent_events DESC
+    LIMIT 50
+  `;
+
+  const sourceSql = `
+    SELECT
+      COALESCE(NULLIF(l.ref, ''), '-') AS ref,
+      COALESCE(NULLIF(l.pub_id, ''), '-') AS pub_id,
+      COALESCE(NULLIF(l.channel, ''), '-') AS channel,
+      COUNT(*)::integer AS sent_events,
+      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs
+    FROM capi_event_logs l
+    WHERE ${scopedWhere}
+    GROUP BY
+      COALESCE(NULLIF(l.ref, ''), '-'),
+      COALESCE(NULLIF(l.pub_id, ''), '-'),
+      COALESCE(NULLIF(l.channel, ''), '-')
+    ORDER BY
+      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      error_logs DESC,
+      sent_events DESC
+    LIMIT 50
+  `;
+
+  const campaignSql = `
+    SELECT
+      COALESCE(
+        NULLIF(l.metadata->>'campaign_name', ''),
+        NULLIF(l.metadata->>'campaign_id', ''),
+        NULLIF(l.metadata->>'campaign', ''),
+        NULLIF(l.ref, ''),
+        NULLIF(l.pub_id, ''),
+        '-'
+      ) AS campaign,
+      COUNT(*)::integer AS sent_events,
+      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+      COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs
+    FROM capi_event_logs l
+    WHERE ${scopedWhere}
+    GROUP BY 1
+    ORDER BY
+      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      error_logs DESC,
+      sent_events DESC
+    LIMIT 50
+  `;
+
+  const issueSql = `
+    SELECT
+      l.id,
+      l.created_at,
+      l.market_key,
+      l.product_key,
+      l.event_name,
+      l.event_id,
+      l.user_id,
+      l.username,
+      l.txn_id,
+      l.ref,
+      l.pub_id,
+      l.channel,
+      l.meta_status,
+      l.events_received,
+      l.error_message,
+      l.fbtrace_id,
+      l.request_ip
+    FROM capi_event_logs l
+    WHERE ${scopedWhere}
+      AND (COALESCE(l.meta_status, 'unknown') <> 'received' OR COALESCE(l.events_received, 0) = 0)
+    ORDER BY l.created_at DESC
+    LIMIT 100
+  `;
+
+  try {
+    const [summaryResult, productResult, eventResult, sourceResult, campaignResult, issueResult] =
+      await Promise.all([
+        pool.query(summarySql, params),
+        pool.query(productSql, params),
+        pool.query(eventSql, params),
+        pool.query(sourceSql, params),
+        pool.query(campaignSql, params),
+        pool.query(issueSql, params),
+      ]);
+
+    return res.json({
+      success: true,
+      data: {
+        date_from: dateFrom,
+        date_to: dateTo,
+        basis: 'backend_log_vs_meta_capi_response',
+        ads_manager_reported_events: null,
+        ads_manager_note:
+          'Import or connect Ads Manager campaign metrics to compare against campaign UI totals.',
+        summary: summaryFromRow(summaryResult.rows[0] || {}),
+        products: productResult.rows.map(summaryFromRow),
+        events: eventResult.rows.map(summaryFromRow),
+        sources: sourceResult.rows.map(summaryFromRow),
+        campaigns: campaignResult.rows.map(summaryFromRow),
+        issues: issueResult.rows,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to load CAPI reconciliation:', error);
+    return res.status(500).json({ success: false, message: 'Could not load CAPI reconciliation.' });
+  }
+}
+
 module.exports = {
   overview,
   productCompare,
   productsCompare,
+  reconciliation,
 };

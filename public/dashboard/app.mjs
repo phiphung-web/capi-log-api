@@ -90,8 +90,14 @@ function setActiveNav(nav) {
 
 function render() {
   const route = routeFromLocation();
+
   if (route.name !== 'login' && !state.token) {
     go('/dashboard/login');
+    return;
+  }
+
+  if (route.name === 'login' && state.token && state.auth) {
+    go('/dashboard');
     return;
   }
 
@@ -150,8 +156,9 @@ async function loadData() {
   }
 
   try {
-    const [overview, markets, products, logs] = await Promise.all([
+    const [overview, reconciliation, markets, products, logs] = await Promise.all([
       api(`/v1/analytics/overview?date_from=${toIsoDate($('dateFrom').value)}&date_to=${toIsoDate($('dateTo').value)}`),
+      api(`/v1/analytics/reconciliation?date_from=${toIsoDate($('dateFrom').value)}&date_to=${toIsoDate($('dateTo').value)}`),
       api('/v1/markets'),
       api('/v1/products'),
       api(`/v1/capi/logs?limit=250&date_from=${toIsoDate($('dateFrom').value)}&date_to=${toIsoDate($('dateTo').value)}`),
@@ -160,6 +167,7 @@ async function loadData() {
     useLiveData({
       auth: me.data,
       overview: overview.data,
+      reconciliation: reconciliation.data,
       markets: markets.data,
       products: products.data,
       logs: logs.data,
@@ -176,14 +184,14 @@ async function loadData() {
   }
 }
 
-async function login(username, password) {
+async function login(username, password, rememberMe = false) {
   const payload = await api('/v1/auth/login', {
     method: 'POST',
     headers: {},
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, remember_me: rememberMe }),
   });
 
-  setToken(payload.data.token);
+  setToken(payload.data.token, Boolean(payload.data.remember_me));
   $('tokenInput').value = state.token;
   await loadData();
   go('/dashboard');
@@ -206,7 +214,7 @@ function bindShellActions() {
       go('/dashboard/login');
       return;
     }
-    await login(username, password);
+    await login(username, password, false);
   };
 
   $('demoBtn').style.display = 'none';

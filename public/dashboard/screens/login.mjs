@@ -33,6 +33,13 @@ export function renderLogin(ctx) {
             <div class="form-grid">
               <div class="full"><label>Username</label><input id="pageUsername" autocomplete="username" placeholder="admin"></div>
               <div class="full"><label>Password</label><input id="pagePassword" autocomplete="current-password" type="password" placeholder="password"></div>
+              <label class="full check-line">
+                <input id="rememberLogin" type="checkbox">
+                <span>
+                  <strong>Remember login</strong>
+                  <small>Keep this session after closing the browser.</small>
+                </span>
+              </label>
             </div>
             <div class="actions">
               <button id="pageLogin" class="primary">Login</button>
@@ -45,8 +52,25 @@ export function renderLogin(ctx) {
   `;
 
   $('pageLogin').onclick = async () => {
+    $('pageLoginState').textContent = '';
     $('usernameInput').value = $('pageUsername').value;
     $('passwordInput').value = $('pagePassword').value;
-    await ctx.login($('pageUsername').value, $('pagePassword').value);
+    try {
+      await ctx.login(
+        $('pageUsername').value,
+        $('pagePassword').value,
+        $('rememberLogin').checked
+      );
+    } catch (error) {
+      $('pageLoginState').textContent = 'Login failed. Check username and password.';
+    }
   };
+
+  ['pageUsername', 'pagePassword'].forEach((id) => {
+    $(id).onkeydown = (event) => {
+      if (event.key === 'Enter') {
+        $('pageLogin').click();
+      }
+    };
+  });
 }

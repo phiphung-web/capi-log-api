@@ -1,6 +1,24 @@
 const pool = require('../db/pool');
 const { hashPassword, signToken, verifyPassword } = require('../utils/security');
 
+function readPositiveSeconds(value, fallback, minimum = 60 * 15) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.max(Math.trunc(parsed), minimum);
+}
+
+const DEFAULT_SESSION_SECONDS = readPositiveSeconds(
+  process.env.SESSION_TTL_SECONDS,
+  60 * 60 * 8
+);
+const REMEMBER_SESSION_SECONDS = Math.max(
+  readPositiveSeconds(process.env.REMEMBER_SESSION_TTL_SECONDS, 60 * 60 * 24 * 30),
+  DEFAULT_SESSION_SECONDS
+);
+
 function sanitizeUser(user) {
   if (!user) return null;
   return {
@@ -14,7 +32,7 @@ function sanitizeUser(user) {
 }
 
 async function login(req, res) {
-  const { username, password } = req.body || {};
+  const { username, password, remember_me: rememberMe = false } = req.body || {};
 
   if (!username || !password) {
     return res.status(400).json({
@@ -37,11 +55,17 @@ async function login(req, res) {
       });
     }
 
+    const expiresInSeconds = rememberMe ? REMEMBER_SESSION_SECONDS : DEFAULT_SESSION_SECONDS;
+    const token = signToken({ user_id: user.id }, { expiresInSeconds });
+
     return res.json({
       success: true,
       message: 'Logged in.',
       data: {
-        token: signToken({ user_id: user.id }),
+        token,
+        remember_me: Boolean(rememberMe),
+        expires_in_seconds: expiresInSeconds,
+        expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
         user: sanitizeUser(user),
       },
     });
@@ -63,6 +87,7 @@ async function me(req, res) {
       role: req.auth.role,
       is_admin: req.auth.is_admin,
       can_write: req.auth.can_write,
+      expires_at: req.auth.expires_at || null,
       user: sanitizeUser(req.auth.user),
     },
   });

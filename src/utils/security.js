@@ -19,16 +19,24 @@ function verifyPassword(password, storedHash) {
   }
 
   const [salt] = storedHash.split(':');
-  return crypto.timingSafeEqual(
-    Buffer.from(hashPassword(password, salt)),
-    Buffer.from(storedHash)
-  );
+  const expected = Buffer.from(hashPassword(password, salt));
+  const actual = Buffer.from(storedHash);
+
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expected, actual);
 }
 
-function signToken(payload) {
+function signToken(payload, options = {}) {
+  const configuredExpiration = Number(options.expiresInSeconds);
+  const expiresInSeconds = Number.isFinite(configuredExpiration)
+    ? Math.trunc(configuredExpiration)
+    : 60 * 60 * 8;
   const body = {
     ...payload,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
   };
   const encodedPayload = base64Url(JSON.stringify(body));
   const signature = crypto
@@ -43,7 +51,12 @@ function verifyToken(token) {
     return null;
   }
 
-  const [encodedPayload, signature] = token.split('.');
+  const parts = token.split('.');
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [encodedPayload, signature] = parts;
   const expectedSignature = crypto
     .createHmac('sha256', getSecret())
     .update(encodedPayload)
@@ -56,7 +69,12 @@ function verifyToken(token) {
     return null;
   }
 
-  const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+  } catch (error) {
+    return null;
+  }
 
   if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
     return null;

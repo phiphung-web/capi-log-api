@@ -835,23 +835,28 @@ async function listProducts(req, res) {
 async function listMarkets(req, res) {
   try {
     const accessScope = await getAccessScope(req);
-    const filters = [];
     const params = [];
-    addAccessFilter(accessScope, filters, params, 'm.market_key', 'p.product_key');
-    const whereSql = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+    const outerFilters = [];
+    const logStatsFilters = ["l.created_at >= NOW() - INTERVAL '30 days'"];
+
+    addAccessFilter(accessScope, logStatsFilters, params, 'l.market_key', 'l.product_key');
+    addAccessFilter(accessScope, outerFilters, params, 'm.market_key', 'p.product_key');
+
+    const logStatsWhereSql = `WHERE ${logStatsFilters.join(' AND ')}`;
+    const whereSql = outerFilters.length > 0 ? `WHERE ${outerFilters.join(' AND ')}` : '';
     const sql = `
     WITH log_stats AS (
       SELECT
-        market_key,
-        COUNT(DISTINCT product_key)::integer AS total_products,
+        l.market_key,
+        COUNT(DISTINCT l.product_key)::integer AS total_products,
         COUNT(*)::integer AS total_logs,
-        COUNT(*) FILTER (WHERE meta_status = 'received')::integer AS received_logs,
-        COUNT(*) FILTER (WHERE meta_status = 'error')::integer AS error_logs,
-        COUNT(*) FILTER (WHERE meta_status = 'unknown')::integer AS unknown_logs,
-        MAX(created_at) AS latest_log_at
-      FROM capi_event_logs
-      WHERE created_at >= NOW() - INTERVAL '30 days'
-      GROUP BY market_key
+        COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS received_logs,
+        COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
+        COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
+        MAX(l.created_at) AS latest_log_at
+      FROM capi_event_logs l
+      ${logStatsWhereSql}
+      GROUP BY l.market_key
     )
     SELECT
       m.market_key,

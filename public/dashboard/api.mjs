@@ -16,6 +16,7 @@ export async function api(path, options = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem('capi_token');
+    sessionStorage.removeItem('capi_token');
     setToken('');
     if (window.location.pathname !== '/dashboard/login') {
       window.location.href = '/dashboard/login';

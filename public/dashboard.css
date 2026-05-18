@@ -450,6 +450,34 @@ body.login-route .main {
   overflow-wrap: anywhere;
 }
 
+.reconciliation-note {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reconciliation-note div {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.reconciliation-note strong,
+.reconciliation-note span {
+  display: block;
+}
+
+.reconciliation-note strong {
+  margin-bottom: 6px;
+}
+
+.reconciliation-note span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .step-card {
   min-height: 132px;
   padding: 17px;
@@ -906,7 +934,7 @@ pre {
 
 @media (max-width: 760px) {
   .main { padding: 16px; }
-  .entity-grid, .filters, .form-grid, .metrics, .workflow, .detail-grid { grid-template-columns: 1fr; }
+  .entity-grid, .filters, .form-grid, .metrics, .workflow, .detail-grid, .reconciliation-note { grid-template-columns: 1fr; }
   body.login-route .main { padding: 0; }
   .login-page { padding: 16px; }
   .login-copy { padding: 24px; }
