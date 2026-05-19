@@ -167,6 +167,11 @@ function render() {
     return;
   }
 
+  if ((route.name === 'admin' || route.name === 'users') && state.auth && !state.auth.is_admin) {
+    go('/dashboard');
+    return;
+  }
+
   syncStateFromRoute(route);
   setActiveNav(route.nav);
   document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
