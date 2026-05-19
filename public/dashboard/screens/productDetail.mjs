@@ -34,6 +34,33 @@ export function renderProductDetail(ctx) {
     received_logs: logs.filter((log) => log.meta_status === 'received').length,
     error_logs: logs.filter((log) => log.meta_status === 'error').length,
   }]);
+  const canManageCatalog = Boolean(state.auth && state.auth.is_admin);
+  const catalogPanel = canManageCatalog ? `
+      <section class="panel">
+        <div class="panel-head"><h2>Danh mục</h2><span class="muted">Admin có thể cập nhật</span></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div><label>Tên hiển thị</label><input id="catName" value="${esc(product.display_name || '')}"></div>
+            <div><label>Danh mục</label><input id="catCategory" value="${esc(product.category || '')}"></div>
+            <div><label>Trạng thái</label><select id="catStatus"><option value="active">Đang hoạt động</option><option value="paused">Tạm dừng</option><option value="archived">Lưu trữ</option></select></div>
+            <div><label>Người phụ trách</label><input id="catOwner" value="${esc(product.owner || '')}"></div>
+            <div class="full"><label>Ghi chú</label><input id="catNotes" value="${esc(product.notes || '')}"></div>
+          </div>
+          <div class="actions"><button id="saveCatalog" class="primary">Lưu danh mục</button></div>
+        </div>
+      </section>
+    ` : `
+      <section class="panel">
+        <div class="panel-head"><h2>Danh mục</h2><span class="muted">Chỉ xem</span></div>
+        <div class="panel-body kv">
+          <div><span>Tên hiển thị</span><strong>${esc(product.display_name || product.product_key)}</strong></div>
+          <div><span>Danh mục</span><strong>${esc(product.category || 'Chưa đặt danh mục')}</strong></div>
+          <div><span>Trạng thái</span><strong>${esc(statusLabel(product.status))}</strong></div>
+          <div><span>Người phụ trách</span><strong>${esc(product.owner || '-')}</strong></div>
+          <div><span>Ghi chú</span><strong>${esc(product.notes || '-')}</strong></div>
+        </div>
+      </section>
+    `;
 
   setShell(
     product.display_name || product.product_key,
@@ -57,19 +84,7 @@ export function renderProductDetail(ctx) {
           ${chartLegend()}
         </div>
       </section>
-      <section class="panel">
-        <div class="panel-head"><h2>Danh mục</h2></div>
-        <div class="panel-body">
-          <div class="form-grid">
-            <div><label>Tên hiển thị</label><input id="catName" value="${esc(product.display_name || '')}"></div>
-            <div><label>Danh mục</label><input id="catCategory" value="${esc(product.category || '')}"></div>
-            <div><label>Trạng thái</label><select id="catStatus"><option value="active">Đang hoạt động</option><option value="paused">Tạm dừng</option><option value="archived">Lưu trữ</option></select></div>
-            <div><label>Người phụ trách</label><input id="catOwner" value="${esc(product.owner || '')}"></div>
-            <div class="full"><label>Ghi chú</label><input id="catNotes" value="${esc(product.notes || '')}"></div>
-          </div>
-          <div class="actions"><button id="saveCatalog" class="primary">Lưu danh mục</button></div>
-        </div>
-      </section>
+      ${catalogPanel}
     </div>
     <div style="height:14px"></div>
     ${table(['Thời gian', 'Sự kiện', 'Trạng thái', 'User / Giao dịch', 'Giá trị', 'Trace'], logs.map((log) => `
@@ -84,7 +99,9 @@ export function renderProductDetail(ctx) {
     `))}
   `;
 
-  $('catStatus').value = product.status || 'active';
-  $('saveCatalog').onclick = () => saveCatalog(product, ctx);
+  if (canManageCatalog) {
+    $('catStatus').value = product.status || 'active';
+    $('saveCatalog').onclick = () => saveCatalog(product, ctx);
+  }
   loadCompareChart(product);
 }

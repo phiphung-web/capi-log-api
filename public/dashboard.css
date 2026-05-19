@@ -18,6 +18,22 @@
   --shadow-soft: 0 10px 24px rgba(15, 23, 42, .05);
 }
 
+body[data-theme="dark"] {
+  --bg: #0b1120;
+  --panel: #111827;
+  --panel-soft: #172033;
+  --text: #eef2f7;
+  --muted: #9aa8bd;
+  --line: #253149;
+  --line-strong: #33415c;
+  --accent: #2dd4bf;
+  --accent-strong: #5eead4;
+  --accent-soft: rgba(45, 212, 191, .14);
+  --ink: #f8fafc;
+  --shadow: 0 18px 46px rgba(0, 0, 0, .26);
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, .20);
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -29,6 +45,13 @@ body {
     linear-gradient(315deg, rgba(29, 78, 216, .07), transparent 28%),
     var(--bg);
   letter-spacing: 0;
+}
+
+body[data-theme="dark"] {
+  background:
+    linear-gradient(135deg, rgba(45, 212, 191, .10), transparent 34%),
+    linear-gradient(315deg, rgba(96, 165, 250, .08), transparent 28%),
+    var(--bg);
 }
 
 button, input, select { font: inherit; }
@@ -61,6 +84,12 @@ input, select {
   color: var(--text);
   padding: 0 11px;
   outline: none;
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select {
+  background: #0f172a;
+  color: var(--text);
 }
 
 input[type="checkbox"] {
@@ -301,6 +330,10 @@ body.login-route .main {
 .auth-box input { margin-bottom: 8px; border-color: transparent; background: rgba(255,255,255,.94); }
 .auth-box button { width: 100%; margin-bottom: 8px; background: #ccfbf1; border-color: transparent; color: #115e59; }
 .auth-box .ghost { background: transparent; border-color: rgba(255,255,255,.18); color: #eef2f7; }
+.auth-box .theme-toggle {
+  margin-top: 4px;
+  background: rgba(255,255,255,.08);
+}
 .auth-actions { display: grid; grid-template-columns: 1fr 92px; gap: 8px; }
 .auth-box p { color: #b8c2d3; font-size: 12px; margin: 4px 0 0; line-height: 1.4; }
 .divider { height: 1px; background: rgba(255,255,255,.12); margin: 10px 0; }
@@ -339,6 +372,15 @@ body.login-route .main {
   border-radius: 8px;
   background: rgba(255,255,255,.76);
   box-shadow: var(--shadow-soft);
+}
+
+body[data-theme="dark"] .date-controls,
+body[data-theme="dark"] .system-strip div,
+body[data-theme="dark"] .panel-head,
+body[data-theme="dark"] .ops-hero > div,
+body[data-theme="dark"] .step-card,
+body[data-theme="dark"] .health-board article {
+  background: rgba(17, 24, 39, .86);
 }
 
 .date-controls label span {
@@ -569,6 +611,10 @@ body.login-route .main {
   background: rgba(15, 118, 110, .08);
 }
 
+body[data-theme="dark"] .metric::after {
+  background: rgba(45, 212, 191, .10);
+}
+
 .metric span {
   color: var(--muted);
   font-size: 12px;
@@ -704,6 +750,14 @@ th {
   font-weight: 950;
   text-transform: uppercase;
   background: #f8fafc;
+}
+
+body[data-theme="dark"] th {
+  background: #172033;
+}
+
+body[data-theme="dark"] tbody tr:hover {
+  background: rgba(45, 212, 191, .08);
 }
 tbody tr:hover { background: #eef9f7; }
 

@@ -34,6 +34,8 @@ const renderers = {
   notFound: renderOverview,
 };
 
+const THEME_STORAGE_KEY = 'capi_dashboard_theme';
+
 function context() {
   return {
     bindLinks,
@@ -108,6 +110,28 @@ function roleLabel(role) {
   }[role] || role || 'Người dùng';
 }
 
+function isAdmin() {
+  return Boolean(state.auth && state.auth.is_admin);
+}
+
+function syncRoleVisibility() {
+  document.body.classList.toggle('admin-auth', isAdmin());
+  document.querySelectorAll('[data-admin-only="true"]').forEach((el) => {
+    el.style.display = isAdmin() ? '' : 'none';
+  });
+}
+
+function currentTheme() {
+  return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
+}
+
+function applyTheme(theme) {
+  const nextTheme = theme === 'dark' ? 'dark' : 'light';
+  document.body.dataset.theme = nextTheme;
+  localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  $('themeToggle').textContent = nextTheme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối';
+}
+
 function updateSessionPanel() {
   const user = state.auth?.user;
   const sessionUser = $('sessionUser');
@@ -132,7 +156,7 @@ function updateSessionPanel() {
 function renderSessionCheck(route) {
   setActiveNav(route.nav);
   document.body.classList.remove('login-route');
-  document.body.classList.remove('admin-auth');
+  syncRoleVisibility();
   $('screenTitle').textContent = 'Đang kiểm tra phiên';
   $('screenSubtitle').textContent = 'Đang xác thực phiên đăng nhập trước khi tải dữ liệu dashboard.';
   $('breadcrumb').textContent = 'Hệ thống / Phiên đăng nhập';
@@ -174,7 +198,7 @@ function render() {
 
   syncStateFromRoute(route);
   setActiveNav(route.nav);
-  document.body.classList.toggle('admin-auth', Boolean(state.auth && state.auth.is_admin));
+  syncRoleVisibility();
   document.body.classList.toggle('login-route', route.name === 'login');
   updateSessionPanel();
 
@@ -214,7 +238,7 @@ async function loadData() {
     state.authChecked = true;
     state.authLoading = false;
     clearLiveData();
-    document.body.classList.remove('admin-auth');
+    syncRoleVisibility();
     $('authState').textContent = 'Vui lòng đăng nhập để tiếp tục.';
     updateSessionPanel();
     go('/dashboard/login');
@@ -230,7 +254,7 @@ async function loadData() {
     state.authChecked = true;
     state.authLoading = false;
     clearLiveData();
-    document.body.classList.remove('admin-auth');
+    syncRoleVisibility();
     updateSessionPanel();
     go('/dashboard/login');
     return;
@@ -259,10 +283,7 @@ async function loadData() {
     });
 
     $('authState').textContent = `Đã tải phiên ${roleLabel(me.data.role)}.`;
-    document.body.classList.toggle('admin-auth', Boolean(me.data.is_admin));
-    document.querySelectorAll('[data-admin-only="true"]').forEach((el) => {
-      el.style.display = me.data.is_admin ? '' : 'none';
-    });
+    syncRoleVisibility();
     render();
   } catch (error) {
     $('authState').textContent = `Không tải được dữ liệu live (${error.message}).`;
@@ -275,7 +296,7 @@ function logout() {
   state.authChecked = true;
   state.authLoading = false;
   clearLiveData();
-  document.body.classList.remove('admin-auth');
+  syncRoleVisibility();
   updateSessionPanel();
   $('authState').textContent = 'Đã đăng xuất.';
   go('/dashboard/login');
@@ -299,11 +320,13 @@ function bindShellActions() {
   });
 
   $('logoutBtn').onclick = logout;
+  $('themeToggle').onclick = () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
   $('refreshBtn').onclick = loadData;
   $('closeModal').onclick = () => $('modal').classList.add('hidden');
 }
 
 function boot() {
+  applyTheme(currentTheme());
   $('dateTo').value = fromIsoDate(new Date());
   $('dateFrom').value = fromIsoDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
 
