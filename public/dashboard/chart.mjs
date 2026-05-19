@@ -28,6 +28,40 @@ function rgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function themeValue(name, fallback) {
+  const value = getComputedStyle(document.body).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function chartTheme() {
+  const dark = document.body.dataset.theme === 'dark';
+  return {
+    tick: themeValue('--muted', dark ? '#9aa8bd' : '#667085'),
+    grid: dark ? 'rgba(255, 255, 255, .12)' : 'rgba(15, 23, 42, .12)',
+    pointFill: themeValue('--panel', dark ? '#111827' : '#ffffff'),
+  };
+}
+
+function traceSmoothPath(ctx, points, tension = 0.4) {
+  if (points.length === 0) return;
+
+  ctx.moveTo(points[0].x, points[0].y);
+
+  if (points.length === 1) return;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const p0 = points[index - 1] || points[index];
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const p3 = points[index + 2] || p2;
+    const cp1x = p1.x + ((p2.x - p0.x) * tension) / 6;
+    const cp1y = p1.y + ((p2.y - p0.y) * tension) / 6;
+    const cp2x = p2.x - ((p3.x - p1.x) * tension) / 6;
+    const cp2y = p2.y - ((p3.y - p1.y) * tension) / 6;
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  }
+}
+
 function drawGrid(ctx, width, height, max) {
   const top = 18;
   const right = 18;
@@ -35,11 +69,13 @@ function drawGrid(ctx, width, height, max) {
   const left = 44;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
+  const theme = chartTheme();
 
-  ctx.strokeStyle = '#e5edf6';
+  ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 1;
-  ctx.fillStyle = '#667085';
+  ctx.fillStyle = theme.tick;
   ctx.font = '11px Inter, system-ui, sans-serif';
+  ctx.setLineDash([4, 6]);
 
   for (let i = 0; i <= 4; i += 1) {
     const y = top + (plotHeight * i) / 4;
@@ -50,6 +86,7 @@ function drawGrid(ctx, width, height, max) {
     ctx.stroke();
     ctx.fillText(label, 8, y + 4);
   }
+  ctx.setLineDash([]);
 
   return { top, right, bottom, left, plotWidth, plotHeight };
 }
@@ -65,6 +102,8 @@ function normalizeSeries(series) {
 }
 
 function drawLineLike(ctx, bounds, lines, max, type) {
+  const theme = chartTheme();
+
   lines.forEach((line) => {
     const points = line.values.map((value, index) => {
       const denominator = Math.max(line.values.length - 1, 1);
@@ -74,16 +113,18 @@ function drawLineLike(ctx, bounds, lines, max, type) {
       };
     });
 
-    if (type === 'area' && points.length > 0) {
+    if (points.length > 0) {
+      const gradient = ctx.createLinearGradient(0, bounds.top, 0, bounds.top + bounds.plotHeight);
+      gradient.addColorStop(0, rgba(line.color, type === 'area' ? 0.22 : 0.16));
+      gradient.addColorStop(0.62, rgba(line.color, 0.08));
+      gradient.addColorStop(1, rgba(line.color, 0));
+
       ctx.beginPath();
-      points.forEach((point, index) => {
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      });
+      traceSmoothPath(ctx, points);
       ctx.lineTo(points[points.length - 1].x, bounds.top + bounds.plotHeight);
       ctx.lineTo(points[0].x, bounds.top + bounds.plotHeight);
       ctx.closePath();
-      ctx.fillStyle = rgba(line.color, 0.11);
+      ctx.fillStyle = gradient;
       ctx.fill();
     }
 
@@ -92,15 +133,12 @@ function drawLineLike(ctx, bounds, lines, max, type) {
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    points.forEach((point, index) => {
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
+    traceSmoothPath(ctx, points);
     ctx.stroke();
 
     points.forEach((point) => {
       ctx.beginPath();
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = theme.pointFill;
       ctx.strokeStyle = line.color;
       ctx.lineWidth = 2;
       ctx.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
@@ -136,7 +174,7 @@ function drawSeriesChart(canvasId, rawSeries, type = 'line') {
   const bounds = drawGrid(ctx, width, height, max);
 
   if (lines.length === 0) {
-    ctx.fillStyle = '#667085';
+    ctx.fillStyle = chartTheme().tick;
     ctx.font = '13px Inter, system-ui, sans-serif';
     ctx.fillText('Chưa có dữ liệu biểu đồ trong phạm vi đã chọn.', bounds.left, height / 2);
     return;

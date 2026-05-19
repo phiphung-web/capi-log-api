@@ -36,6 +36,8 @@ app.get('/v1', (req, res) => {
     markets_endpoint: '/v1/markets',
     products_endpoint: '/v1/products',
     products_compare_endpoint: '/v1/analytics/products/compare?products=marketA:productA,marketB:productB',
+    campaign_performance_endpoint: '/v1/analytics/campaign-performance?date_from=2026-05-01&date_to=2026-05-14&event_name=Purchase',
+    events_breakdown_endpoint: '/v1/analytics/events-breakdown?market_key=vn&product_key=lengbear777',
     log_endpoint: '/v1/capi/logs',
     product_log_endpoint: '/v1/products/:product_key/capi/logs',
     market_product_log_endpoint: '/v1/markets/:market_key/products/:product_key/capi/logs',
@@ -68,6 +70,8 @@ app.patch('/v1/admin/users/:id', auth, auth.requireAdmin, usersController.update
 app.put('/v1/admin/users/:id/access', auth, auth.requireAdmin, usersController.updateUserAccess);
 app.get('/v1/analytics/overview', auth, analyticsController.overview);
 app.get('/v1/analytics/reconciliation', auth, analyticsController.reconciliation);
+app.get('/v1/analytics/campaign-performance', auth, analyticsController.getCampaignPerformance);
+app.get('/v1/analytics/events-breakdown', auth, analyticsController.eventsBreakdown);
 app.get('/v1/analytics/products/compare', auth, analyticsController.productsCompare);
 app.get(
   '/v1/analytics/markets/:market_key/products/:product_key/compare',

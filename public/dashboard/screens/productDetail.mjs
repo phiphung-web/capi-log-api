@@ -5,7 +5,82 @@ import { chartLegend, metrics, statusLabel, statusPill, table } from '../compone
 import { loadCompareChart } from '../chart.mjs';
 import { logPath, productLogsPath } from '../router.mjs';
 import { setShell } from '../shell.mjs';
-import { esc, fromIsoDate, summarize } from '../utils.mjs';
+import { esc, fromIsoDate, summarize, toIsoDate } from '../utils.mjs';
+
+function productEventFilterKey(product) {
+  return `${product.market_key}:${product.product_key}`;
+}
+
+function selectedEventName(product) {
+  return state.productDetailEventFilters?.[productEventFilterKey(product)] || 'All';
+}
+
+function campaignUrl(product, eventName) {
+  const params = new URLSearchParams({
+    market_key: product.market_key,
+    product_key: product.product_key,
+    date_from: toIsoDate($('dateFrom').value),
+    date_to: toIsoDate($('dateTo').value),
+    event_name: eventName || 'All',
+  });
+
+  return `/v1/analytics/campaign-performance?${params.toString()}`;
+}
+
+function eventsBreakdownUrl(product) {
+  const params = new URLSearchParams({
+    market_key: product.market_key,
+    product_key: product.product_key,
+    date_from: toIsoDate($('dateFrom').value),
+    date_to: toIsoDate($('dateTo').value),
+  });
+
+  return `/v1/analytics/events-breakdown?${params.toString()}`;
+}
+
+function renderCampaignPerformance(rows) {
+  $('campaignPerformanceResults').innerHTML = table(
+    ['Campaign/Pub_ID', 'Total Events', 'Received (Thành công)', 'Error (Lỗi)', 'Total Value'],
+    rows.map((row) => `
+      <tr>
+        <td><strong>${esc(row.campaign || '-')}</strong></td>
+        <td>${esc(row.matching_events || 0)}</td>
+        <td class="metric-good">${esc(row.received_events || 0)}</td>
+        <td class="metric-bad">${esc(row.error_events || 0)}</td>
+        <td>${Number(row.total_value || 0).toFixed(2)}</td>
+      </tr>
+    `)
+  );
+}
+
+async function loadEventsBreakdown(product) {
+  const select = $('eventFilter');
+  if (!select) return;
+
+  try {
+    const payload = await api(eventsBreakdownUrl(product));
+    const selected = selectedEventName(product);
+    const events = payload.data.events || [];
+    select.innerHTML = [
+      '<option value="All">All</option>',
+      ...events.map((event) => `<option value="${esc(event.event_name)}">${esc(event.event_name)}</option>`),
+    ].join('');
+    select.value = events.some((event) => event.event_name === selected) ? selected : 'All';
+  } catch (error) {
+    select.innerHTML = '<option value="All">All</option>';
+  }
+}
+
+async function loadCampaignPerformance(product, eventName = selectedEventName(product)) {
+  $('campaignPerformanceResults').innerHTML = '<section class="panel"><div class="panel-body muted">Đang tải campaign performance...</div></section>';
+
+  try {
+    const payload = await api(campaignUrl(product, eventName));
+    renderCampaignPerformance(payload.data.campaigns || []);
+  } catch (error) {
+    $('campaignPerformanceResults').innerHTML = `<section class="panel"><div class="panel-body muted">Không tải được campaign performance (${esc(error.message)}).</div></section>`;
+  }
+}
 
 async function saveCatalog(product, ctx) {
   await api(`/v1/admin/markets/${product.market_key}/products/${product.product_key}`, {
@@ -35,6 +110,7 @@ export function renderProductDetail(ctx) {
     error_logs: logs.filter((log) => log.meta_status === 'error').length,
   }]);
   const canManageCatalog = Boolean(state.auth && state.auth.is_admin);
+  const eventFilterValue = selectedEventName(product);
   const catalogPanel = canManageCatalog ? `
       <section class="panel">
         <div class="panel-head"><h2>Danh mục</h2><span class="muted">Admin có thể cập nhật</span></div>
@@ -87,6 +163,16 @@ export function renderProductDetail(ctx) {
       ${catalogPanel}
     </div>
     <div style="height:14px"></div>
+    <section class="panel">
+      <div class="panel-head"><h2>Campaign</h2><span class="muted">Lọc theo event trong khoảng ngày đang chọn</span></div>
+      <div class="panel-body filters">
+        <select id="eventFilter">
+          <option value="All" ${eventFilterValue === 'All' ? 'selected' : ''}>All</option>
+        </select>
+      </div>
+    </section>
+    <section id="campaignPerformanceResults"></section>
+    <div style="height:14px"></div>
     ${table(['Thời gian', 'Sự kiện', 'Trạng thái', 'User / Giao dịch', 'Giá trị', 'Trace'], logs.map((log) => `
       <tr>
         <td>${fromIsoDate(log.created_at)}</td>
@@ -103,5 +189,14 @@ export function renderProductDetail(ctx) {
     $('catStatus').value = product.status || 'active';
     $('saveCatalog').onclick = () => saveCatalog(product, ctx);
   }
+  $('eventFilter').onchange = () => {
+    const nextEventName = $('eventFilter').value || 'All';
+    state.productDetailEventFilters = {
+      ...(state.productDetailEventFilters || {}),
+      [productEventFilterKey(product)]: nextEventName,
+    };
+    loadCampaignPerformance(product, nextEventName);
+  };
   loadCompareChart(product);
+  loadEventsBreakdown(product).then(() => loadCampaignPerformance(product, $('eventFilter').value || 'All'));
 }

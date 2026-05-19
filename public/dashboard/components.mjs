@@ -37,7 +37,7 @@ export function table(headers, rows) {
 
   return `
     <div class="panel">
-      <div class="table-scroll">
+      <div class="table-scroll table-container">
         <table>
           <thead><tr>${headers.map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead>
           <tbody>${body}</tbody>

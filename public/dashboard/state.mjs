@@ -16,6 +16,7 @@ export const state = {
   selectedLog: null,
   filters: {},
   productFilters: {},
+  productDetailEventFilters: {},
   compareSelection: [],
   overviewChartType: 'area',
   productCompareChartType: 'line',
@@ -49,6 +50,7 @@ export function clearLiveData() {
   state.products = [];
   state.logs = [];
   state.productFilters = {};
+  state.productDetailEventFilters = {};
   state.compareSelection = [];
   state.overviewChartType = 'area';
   state.productCompareChartType = 'line';

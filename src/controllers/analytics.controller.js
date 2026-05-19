@@ -748,9 +748,147 @@ async function reconciliation(req, res) {
   }
 }
 
+async function getCampaignPerformance(req, res) {
+  const window = parseWindow(req.query);
+  if (window.error) {
+    return res.status(400).json({ success: false, message: window.error });
+  }
+
+  const { dateFrom, dateTo } = window;
+  const accessScope = await getAccessScope(req);
+  const filters = [
+    "l.created_at >= $1::date",
+    "l.created_at < ($2::date + INTERVAL '1 day')",
+  ];
+  const params = [dateFrom, dateTo];
+
+  addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
+
+  const marketKey = String(req.query.market_key || '').trim();
+  const productKey = String(req.query.product_key || '').trim();
+  if ((marketKey && !validateSegmentKey(marketKey)) || (productKey && !validateSegmentKey(productKey))) {
+    return res.status(400).json({ success: false, message: 'Invalid market or product key.' });
+  }
+
+  if (marketKey) {
+    params.push(marketKey);
+    filters.push(`l.market_key = $${params.length}`);
+  }
+
+  if (productKey) {
+    params.push(productKey);
+    filters.push(`l.product_key = $${params.length}`);
+  }
+
+  const eventName = String(req.query.event_name || '').trim();
+  if (eventName && eventName !== 'All') {
+    params.push(eventName);
+    filters.push(`l.event_name ILIKE $${params.length}`);
+  }
+
+  const sql = `
+    SELECT
+      COALESCE(
+        NULLIF(l.metadata->>'campaign_name', ''),
+        NULLIF(l.metadata->>'campaign_id', ''),
+        NULLIF(l.metadata->>'campaign', ''),
+        NULLIF(l.ref, ''),
+        NULLIF(l.pub_id, ''),
+        '-'
+      ) AS campaign,
+      SUM(1) AS matching_events,
+      SUM(CASE WHEN l.meta_status = 'received' THEN 1 ELSE 0 END) AS received_events,
+      SUM(CASE WHEN l.meta_status = 'error' THEN 1 ELSE 0 END) AS error_events,
+      COUNT(DISTINCT l.user_id)::integer AS unique_users,
+      COALESCE(SUM(l.value), 0)::numeric AS total_value,
+      MAX(l.created_at) AS latest_event_at
+    FROM capi_event_logs l
+    WHERE ${filters.join(' AND ')}
+    GROUP BY 1
+    ORDER BY matching_events DESC, received_events DESC, campaign
+    LIMIT 100
+  `;
+
+  try {
+    const { rows } = await pool.query(sql, params);
+    return res.json({
+      success: true,
+      data: {
+        date_from: dateFrom,
+        date_to: dateTo,
+        event_name: eventName || 'All',
+        campaigns: rows,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to load campaign performance:', error);
+    return res.status(500).json({ success: false, message: 'Could not load campaign performance.' });
+  }
+}
+
+async function eventsBreakdown(req, res) {
+  const window = parseWindow(req.query);
+  if (window.error) {
+    return res.status(400).json({ success: false, message: window.error });
+  }
+
+  const { dateFrom, dateTo } = window;
+  const accessScope = await getAccessScope(req);
+  const filters = [
+    "l.created_at >= $1::date",
+    "l.created_at < ($2::date + INTERVAL '1 day')",
+  ];
+  const params = [dateFrom, dateTo];
+
+  addAccessFilter(accessScope, filters, params, 'l.market_key', 'l.product_key');
+
+  const marketKey = String(req.query.market_key || '').trim();
+  const productKey = String(req.query.product_key || '').trim();
+  if ((marketKey && !validateSegmentKey(marketKey)) || (productKey && !validateSegmentKey(productKey))) {
+    return res.status(400).json({ success: false, message: 'Invalid market or product key.' });
+  }
+
+  if (marketKey) {
+    params.push(marketKey);
+    filters.push(`l.market_key = $${params.length}`);
+  }
+
+  if (productKey) {
+    params.push(productKey);
+    filters.push(`l.product_key = $${params.length}`);
+  }
+
+  const sql = `
+    SELECT
+      l.event_name,
+      COUNT(*)::integer AS total_events
+    FROM capi_event_logs l
+    WHERE ${filters.join(' AND ')}
+    GROUP BY l.event_name
+    ORDER BY total_events DESC, l.event_name
+  `;
+
+  try {
+    const { rows } = await pool.query(sql, params);
+    return res.json({
+      success: true,
+      data: {
+        date_from: dateFrom,
+        date_to: dateTo,
+        events: rows,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to load events breakdown:', error);
+    return res.status(500).json({ success: false, message: 'Could not load events breakdown.' });
+  }
+}
+
 module.exports = {
   overview,
   productCompare,
   productsCompare,
   reconciliation,
+  getCampaignPerformance,
+  eventsBreakdown,
 };
