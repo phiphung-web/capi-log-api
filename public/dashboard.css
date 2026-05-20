@@ -567,6 +567,19 @@ textarea:focus {
   color: var(--muted);
 }
 
+.market-key-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.market-key-cell strong {
+  letter-spacing: 0;
+}
+
+.market-key-cell small {
+  color: var(--muted);
+}
+
 .media-field {
   display: grid;
   gap: 10px;
@@ -1226,6 +1239,40 @@ canvas {
   margin-bottom: 10px;
 }
 
+.access-market-list {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.access-market {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.access-market-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 800;
+}
+
+.access-market-head small,
+.access-products small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.access-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding-top: 10px;
+}
+
 .log-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1355,6 +1402,10 @@ pre {
 
   .event-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .access-products {
+    grid-template-columns: 1fr;
   }
 
   .login-aside {

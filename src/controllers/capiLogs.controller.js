@@ -102,11 +102,6 @@ function addAccessFilter(accessScope, filters, params, marketExpr, productExpr) 
 
   const clauses = [];
 
-  if (accessScope.marketKeys.length > 0) {
-    params.push(accessScope.marketKeys);
-    clauses.push(`${marketExpr} = ANY($${params.length}::text[])`);
-  }
-
   if (accessScope.productKeys.length > 0) {
     params.push(accessScope.productMarketKeys, accessScope.productKeys);
     const marketParam = params.length - 1;

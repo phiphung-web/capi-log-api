@@ -1464,23 +1464,20 @@ function renderAdminUsers() {
       <div class="panel-head">
         <div>
           <strong>Quản lý User</strong>
-          <span>Tạo, sửa role/status/password và phân quyền truy cập.</span>
+          <span>User chỉ cần tên đăng nhập và mật khẩu. Quyền truy cập được cấu hình riêng.</span>
         </div>
         <button class="primary" id="create-user-btn" type="button">Tạo user</button>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Quyền truy cập</th><th></th></tr></thead>
+          <thead><tr><th>Tên đăng nhập</th><th>Quyền truy cập</th><th></th></tr></thead>
           <tbody>
             ${state.admin.users.map((user) => `
               <tr>
-                <td><strong>${escapeHtml(user.username)}</strong><br><small>${escapeHtml(text(user.display_name))}</small></td>
-                <td>${escapeHtml(text(user.email))}</td>
-                <td>${escapeHtml(roleLabel(user.role))}</td>
-                <td><em class="badge ${classForStatus(user.status)}">${escapeHtml(statusLabel(user.status))}</em></td>
+                <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${fmt(user.markets?.length || 0)} thị trường · ${fmt(user.products?.length || 0)} sản phẩm</td>
                 <td class="actions">
-                  <button class="secondary" data-edit-user="${user.id}" type="button">Sửa</button>
+                  <button class="secondary" data-edit-user="${user.id}" type="button">Đổi mật khẩu</button>
                   <button class="secondary" data-access-user="${user.id}" type="button">Phân quyền</button>
                 </td>
               </tr>
@@ -1498,19 +1495,18 @@ function renderAdminMarkets() {
       <div class="panel-head"><strong>Quản lý Thị trường</strong></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Market</th><th>Region</th><th>Status</th><th>Owner</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Market</th><th>Region</th><th>Status</th><th>Notes</th><th></th></tr></thead>
           <tbody>
             ${state.markets.map((market) => `
               <tr>
                 <td>
-                  <div class="entity-cell">
-                    <span class="table-flag">${marketMeta(market).flag}</span>
-                    <div><strong>${escapeHtml(market.display_name || marketMeta(market).name)}</strong><small>${escapeHtml(market.market_key)}</small></div>
+                  <div class="market-key-cell">
+                    <strong>${escapeHtml(String(market.market_key || '').toUpperCase())}</strong>
+                    <small>${escapeHtml(market.market_key)}</small>
                   </div>
                 </td>
-                <td>${escapeHtml(text(market.region))}</td>
+                <td>${escapeHtml(text(market.region || market.display_name || marketMeta(market).name))}</td>
                 <td><em class="badge ${classForStatus(market.status || 'active')}">${escapeHtml(statusLabel(market.status || 'active'))}</em></td>
-                <td>${escapeHtml(text(market.owner))}</td>
                 <td class="clip">${escapeHtml(text(market.notes))}</td>
                 <td><button class="secondary" data-edit-market="${escapeHtml(market.market_key)}" type="button">Sửa</button></td>
               </tr>
@@ -1528,7 +1524,7 @@ function renderAdminProducts() {
       <div class="panel-head"><strong>Quản lý Sản phẩm</strong></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Sản phẩm</th><th>Thị trường</th><th>Category</th><th>Status</th><th>Owner</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Sản phẩm</th><th>Thị trường</th><th>Category</th><th>Status</th><th>Notes</th><th></th></tr></thead>
           <tbody>
             ${state.products.map((product) => `
               <tr>
@@ -1541,7 +1537,6 @@ function renderAdminProducts() {
                 <td>${escapeHtml(product.market_key)}</td>
                 <td>${escapeHtml(text(product.category))}</td>
                 <td><em class="badge ${classForStatus(product.status || 'active')}">${escapeHtml(statusLabel(product.status || 'active'))}</em></td>
-                <td>${escapeHtml(text(product.owner))}</td>
                 <td class="clip">${escapeHtml(text(product.notes))}</td>
                 <td><button class="secondary" data-edit-product="${escapeHtml(`${product.market_key}:${product.product_key}`)}" type="button">Sửa</button></td>
               </tr>
@@ -1754,18 +1749,14 @@ function showUserForm(user = null) {
   const editing = Boolean(user);
   showModal(`
     <form class="modal-form" id="user-form">
-      <h2>${editing ? 'Sửa user' : 'Tạo user mới'}</h2>
+      <h2>${editing ? 'Đổi mật khẩu user' : 'Tạo user mới'}</h2>
       ${editing ? `<p class="muted">${escapeHtml(user.username)}</p>` : `
-        <label><span>Username</span><input name="username" required></label>
+        <label><span>Tên đăng nhập</span><input name="username" required autocomplete="username"></label>
       `}
-      <label><span>Display name</span><input name="display_name" value="${escapeHtml(user?.display_name || '')}"></label>
-      <label><span>Email</span><input name="email" value="${escapeHtml(user?.email || '')}" ${editing ? 'disabled' : ''}></label>
-      <label><span>Role</span>${select('role', ['viewer', 'manager', 'admin'], user?.role || 'viewer')}</label>
-      <label><span>Status</span>${select('status', ['active', 'disabled'], user?.status || 'active')}</label>
-      <label><span>${editing ? 'Mật khẩu mới (bỏ trống nếu không đổi)' : 'Mật khẩu'}</span><input name="password" type="password" ${editing ? '' : 'required'}></label>
+      <label><span>${editing ? 'Mật khẩu mới' : 'Mật khẩu'}</span><input name="password" type="password" autocomplete="new-password" required></label>
       <div class="modal-actions">
         <button class="ghost" data-close-modal type="button">Hủy</button>
-        <button class="primary" type="submit">${editing ? 'Lưu user' : 'Tạo user'}</button>
+        <button class="primary" type="submit">${editing ? 'Lưu mật khẩu' : 'Tạo user'}</button>
       </div>
     </form>
   `);
@@ -1774,13 +1765,12 @@ function showUserForm(user = null) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    if (!payload.password) delete payload.password;
     if (editing) {
-      if (!(await confirmDialog('Bạn có chắc muốn lưu thay đổi user này?'))) return;
-      await runAdminAction(() => api.updateUser(user.id, payload), 'Đã cập nhật user.');
+      if (!(await confirmDialog('Bạn có chắc muốn đổi mật khẩu user này?'))) return;
+      await runAdminAction(() => api.updateUser(user.id, { password: payload.password }), 'Đã cập nhật mật khẩu.');
     } else {
       if (!(await confirmDialog('Bạn có chắc muốn tạo user mới?'))) return;
-      await runAdminAction(() => api.createUser(payload), 'Đã tạo user.');
+      await runAdminAction(() => api.createUser({ username: payload.username, password: payload.password }), 'Đã tạo user.');
     }
     closeModal();
     state.admin.users = await api.adminUsers();
@@ -1791,32 +1781,43 @@ function showUserForm(user = null) {
 function showAccessForm(user) {
   const userMarkets = new Set(user.markets || []);
   const userProducts = new Set((user.products || []).map((item) => `${item.market_key}:${item.product_key}`));
+  const marketsWithProducts = state.markets
+    .map((market) => ({
+      ...market,
+      products: state.products.filter((product) => product.market_key === market.market_key),
+    }))
+    .filter((market) => market.products.length > 0);
 
   showModal(`
     <form class="modal-form access-form" id="access-form">
       <h2>Phân quyền ${escapeHtml(user.username)}</h2>
-      <div class="access-columns">
-        <section>
-          <strong>Thị trường</strong>
-          ${state.markets.map((market) => `
-            <label class="check-row">
-              <input name="markets" value="${escapeHtml(market.market_key)}" type="checkbox" ${userMarkets.has(market.market_key) ? 'checked' : ''}>
-              <span>${escapeHtml(market.display_name || market.market_key)}</span>
-            </label>
-          `).join('')}
-        </section>
-        <section>
-          <strong>Sản phẩm cụ thể</strong>
-          ${state.products.map((product) => {
-            const key = `${product.market_key}:${product.product_key}`;
-            return `
-              <label class="check-row">
-                <input name="products" value="${escapeHtml(key)}" type="checkbox" ${userProducts.has(key) ? 'checked' : ''}>
-                <span>${escapeHtml(productName(product))} · ${escapeHtml(product.market_key)}</span>
+      <p class="muted">Chọn thị trường rồi chọn ít nhất 1 sản phẩm trong thị trường đó. Quyền xem thực tế được giới hạn theo sản phẩm đã chọn.</p>
+      <div class="access-market-list">
+        ${marketsWithProducts.map((market) => {
+          const meta = marketMeta(market);
+          const marketProductKeys = market.products.map((product) => `${product.market_key}:${product.product_key}`);
+          const hasSelectedProduct = marketProductKeys.some((key) => userProducts.has(key));
+          const checked = userMarkets.has(market.market_key) || hasSelectedProduct;
+          return `
+            <section class="access-market">
+              <label class="check-row access-market-head">
+                <input name="markets" value="${escapeHtml(market.market_key)}" type="checkbox" data-access-market="${escapeHtml(market.market_key)}" ${checked ? 'checked' : ''}>
+                <span>${meta.flag} ${escapeHtml(meta.name)} <small>${escapeHtml(market.market_key)}</small></span>
               </label>
-            `;
-          }).join('')}
-        </section>
+              <div class="access-products">
+                ${market.products.map((product) => {
+                  const key = `${product.market_key}:${product.product_key}`;
+                  return `
+                    <label class="check-row">
+                      <input name="products" value="${escapeHtml(key)}" type="checkbox" data-access-product-market="${escapeHtml(product.market_key)}" ${userProducts.has(key) ? 'checked' : ''}>
+                      <span>${escapeHtml(productName(product))} <small>${escapeHtml(product.product_key)}</small></span>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
+            </section>
+          `;
+        }).join('')}
       </div>
       <div class="modal-actions">
         <button class="ghost" data-close-modal type="button">Hủy</button>
@@ -1825,16 +1826,43 @@ function showAccessForm(user) {
     </form>
   `);
 
+  document.querySelectorAll('[data-access-product-market]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      const marketKey = event.currentTarget.dataset.accessProductMarket;
+      const marketInput = document.querySelector(`[data-access-market="${CSS.escape(marketKey)}"]`);
+      if (event.currentTarget.checked && marketInput) marketInput.checked = true;
+    });
+  });
+
+  document.querySelectorAll('[data-access-market]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      if (event.currentTarget.checked) return;
+      document.querySelectorAll(`[data-access-product-market="${CSS.escape(event.currentTarget.value)}"]`).forEach((productInput) => {
+        productInput.checked = false;
+      });
+    });
+  });
+
   document.getElementById('access-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!(await confirmDialog('Bạn có chắc muốn cập nhật phân quyền user này?'))) return;
     const form = new FormData(event.currentTarget);
+    const markets = form.getAll('markets');
+    const products = form.getAll('products').map((key) => {
+      const [market_key, product_key] = String(key).split(':');
+      return { market_key, product_key };
+    });
+    const productMarketSet = new Set(products.map((product) => product.market_key));
+    const invalidMarket = markets.find((marketKey) => !productMarketSet.has(marketKey));
+
+    if (invalidMarket) {
+      toast(`Thị trường ${invalidMarket} phải có ít nhất 1 sản phẩm kèm.`, 'error');
+      return;
+    }
+
+    if (!(await confirmDialog('Bạn có chắc muốn cập nhật phân quyền user này?'))) return;
     const payload = {
-      markets: form.getAll('markets'),
-      products: form.getAll('products').map((key) => {
-        const [market_key, product_key] = String(key).split(':');
-        return { market_key, product_key };
-      }),
+      markets,
+      products,
     };
     await runAdminAction(() => api.updateAccess(user.id, payload), 'Đã cập nhật phân quyền.');
     closeModal();
@@ -1847,7 +1875,7 @@ function showMarketForm(market) {
   const meta = marketMeta(market);
   showCatalogForm({
     title: `Sửa thị trường ${market.market_key}`,
-    fields: ['display_name', 'region', 'status', 'flag_url', 'owner', 'notes'],
+    fields: ['display_name', 'region', 'status', 'flag_url', 'notes'],
     values: { ...market, flag_url: meta.flagUrl },
     onSubmit: async (payload) => {
       if (!(await confirmDialog(`Bạn có chắc muốn lưu thị trường ${market.market_key}?`))) return;
@@ -1869,7 +1897,7 @@ function showProductForm(product) {
   const media = productMedia(product);
   showCatalogForm({
     title: `Sửa sản phẩm ${product.market_key}:${product.product_key}`,
-    fields: ['display_name', 'category', 'status', 'image_url', 'owner', 'notes'],
+    fields: ['display_name', 'category', 'status', 'image_url', 'notes'],
     values: { ...product, image_url: media.image_url || '' },
     onSubmit: async (payload) => {
       if (!(await confirmDialog(`Bạn có chắc muốn lưu sản phẩm ${product.product_key}?`))) return;

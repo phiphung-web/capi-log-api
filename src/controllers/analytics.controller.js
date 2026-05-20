@@ -31,11 +31,6 @@ function addAccessFilter(accessScope, filters, params, marketExpr, productExpr) 
 
   const clauses = [];
 
-  if (accessScope.marketKeys.length > 0) {
-    params.push(accessScope.marketKeys);
-    clauses.push(`${marketExpr} = ANY($${params.length}::text[])`);
-  }
-
   if (accessScope.productKeys.length > 0) {
     params.push(accessScope.productMarketKeys, accessScope.productKeys);
     const marketParam = params.length - 1;
@@ -135,7 +130,6 @@ function requestedProductsCte(pairs, params) {
 
 function hasProductAccess(accessScope, marketKey, productKey) {
   if (!accessScope) return true;
-  if (accessScope.marketKeys.includes(marketKey)) return true;
 
   return accessScope.productKeys.some((allowedProductKey, index) =>
     allowedProductKey === productKey && accessScope.productMarketKeys[index] === marketKey
@@ -153,11 +147,6 @@ function allowedProductsCte(accessScope, params) {
   }
 
   const clauses = [];
-
-  if (accessScope.marketKeys.length > 0) {
-    params.push(accessScope.marketKeys);
-    clauses.push(`rp.market_key = ANY($${params.length}::text[])`);
-  }
 
   if (accessScope.productKeys.length > 0) {
     params.push(accessScope.productMarketKeys, accessScope.productKeys);

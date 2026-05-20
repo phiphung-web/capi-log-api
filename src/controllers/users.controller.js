@@ -150,6 +150,18 @@ async function updateUserAccess(req, res) {
     });
   }
 
+  const marketSet = new Set(markets);
+  const productMarketSet = new Set(products.map((product) => product.market_key));
+  const marketWithoutProduct = markets.find((marketKey) => !productMarketSet.has(marketKey));
+  const productWithoutMarket = products.find((product) => !marketSet.has(product.market_key));
+
+  if (marketWithoutProduct || productWithoutMarket) {
+    return res.status(400).json({
+      success: false,
+      message: 'Each selected market must include at least one selected product, and each selected product must belong to a selected market.',
+    });
+  }
+
   const client = await pool.connect();
 
   try {
