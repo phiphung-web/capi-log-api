@@ -988,11 +988,11 @@ function renderProductDetail(marketKey, productKey) {
     </section>
 
     <div class="kpi-grid product-kpis">
-      ${kpiCard('Sự kiện ghi nhận', fmt(summary.sent), 'Tổng số log records')}
-      ${kpiCard('Meta đã nhận', fmt(summary.received), 'Tổng SUM(events_received)')}
+      ${kpiCard('Log ghi nhận', fmt(summary.sent), 'Tổng số dòng log trong hệ thống')}
+      ${kpiCard('Log Meta nhận', fmt(summary.accepted), 'Số log có meta_status = received')}
+      ${kpiCard('Meta events_received', fmt(summary.received), 'Tổng SUM(events_received) từ Meta')}
       ${kpiCard('Lỗi', fmt(summary.errors), `meta_status = error`)}
       ${kpiCard('% lỗi', pctText(summary.errorRate), `${fmt(summary.errors)} lỗi / ${fmt(summary.sent)} ghi nhận`, summary.errorRate > 15 ? 'error' : summary.errorRate > 5 ? 'warning' : 'healthy')}
-      ${kpiCard('Tỷ lệ khớp', pctText(summary.matchRate), 'Meta nhận / ghi nhận')}
     </div>
 
     <section class="panel">
@@ -1042,16 +1042,18 @@ function renderProductDetail(marketKey, productKey) {
 function summarizeLogs(logs) {
   const sent = logs.length;
   const received = logs.reduce((sum, log) => sum + n(log.events_received), 0);
+  const accepted = logs.filter((log) => log.meta_status === 'received').length;
   const errors = logs.filter((log) => log.meta_status === 'error').length;
   const unknown = logs.filter((log) => !log.meta_status || log.meta_status === 'unknown').length;
   return {
     sent,
     received,
+    accepted,
     errors,
     unknown,
     errorRate: pct(errors, sent),
     unknownRate: pct(unknown, sent),
-    matchRate: pct(received, sent),
+    matchRate: pct(accepted, sent),
   };
 }
 
@@ -1088,6 +1090,7 @@ function groupLogs(logs, keyFn) {
       name: key,
       sent: 0,
       received: 0,
+      accepted: 0,
       errors: 0,
       unknown: 0,
       users: new Set(),
@@ -1095,6 +1098,7 @@ function groupLogs(logs, keyFn) {
     };
     item.sent += 1;
     item.received += n(log.events_received);
+    item.accepted += log.meta_status === 'received' ? 1 : 0;
     item.errors += log.meta_status === 'error' ? 1 : 0;
     item.unknown += !log.meta_status || log.meta_status === 'unknown' ? 1 : 0;
     if (log.user_id) item.users.add(log.user_id);
@@ -1133,7 +1137,7 @@ function renderEventSections(events) {
           <div class="event-head">
             <div>
               <strong>${escapeHtml(event.name)}</strong>
-              <span>${fmt(event.sent)} ghi nhận · ${fmt(event.received)} Meta nhận · lỗi ${pctText(pct(event.errors, event.sent))}</span>
+              <span>${fmt(event.sent)} log · ${fmt(event.accepted)} log Meta nhận · ${fmt(event.received)} events_received · lỗi ${pctText(pct(event.errors, event.sent))}</span>
             </div>
             ${sparkline(event.logs, event.name)}
           </div>
@@ -1149,12 +1153,13 @@ function renderEventSections(events) {
           </div>
           <div class="table-wrap campaign-table">
             <table>
-              <thead><tr><th>Campaign ID</th><th>Sự kiện</th><th>Meta nhận</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
+              <thead><tr><th>Campaign ID</th><th>Log</th><th>Log Meta nhận</th><th>events_received</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
               <tbody>
                 ${event.campaigns.slice(0, 20).map((campaign) => `
                   <tr>
                     <td class="clip ${campaign.name === 'Không có campaign' ? 'muted-cell' : ''}">${escapeHtml(campaign.name)}</td>
                     <td>${fmt(campaign.sent)}</td>
+                    <td>${fmt(campaign.accepted)}</td>
                     <td>${fmt(campaign.received)}</td>
                     <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
                     <td>${money(campaign.value)}</td>
