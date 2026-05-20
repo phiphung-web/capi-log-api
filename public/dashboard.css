@@ -803,6 +803,11 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.muted-cell {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .select-box {
   display: inline-flex;
   width: 30px;

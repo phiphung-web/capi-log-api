@@ -1020,7 +1020,7 @@ function renderProductDetail(marketKey, productKey) {
       <div class="panel-head">
         <div>
           <strong>Phân loại theo Event Name và Campaign</strong>
-          <span>Mỗi event hiển thị campaign ID để đối chiếu với Ads Manager.</span>
+          <span>Campaign lấy từ utm_campaign. Ref chỉ dùng ở bộ lọc nguồn, không trộn vào campaign.</span>
         </div>
       </div>
       ${renderEventSections(events)}
@@ -1065,8 +1065,8 @@ function extractCustomData(log) {
 function campaignKey(log) {
   const custom = extractCustomData(log);
   return text(
-    custom.utm_campaign || custom.campaign_id || custom.campaign || log.metadata?.campaign_id || log.ref || log.pub_id,
-    '-'
+    custom.utm_campaign || log.metadata?.utm_campaign || log.metadata?.campaign_id || log.metadata?.campaign,
+    'Không có campaign'
   );
 }
 
@@ -1125,6 +1125,7 @@ function buildEventDetails(logs) {
 
 function renderEventSections(events) {
   if (!events.length) return emptyState('Không có event trong khoảng lọc');
+
   return `
     <div class="event-stack">
       ${events.map((event) => `
@@ -1152,7 +1153,7 @@ function renderEventSections(events) {
               <tbody>
                 ${event.campaigns.slice(0, 20).map((campaign) => `
                   <tr>
-                    <td class="clip">${escapeHtml(campaign.name)}</td>
+                    <td class="clip ${campaign.name === 'Không có campaign' ? 'muted-cell' : ''}">${escapeHtml(campaign.name)}</td>
                     <td>${fmt(campaign.sent)}</td>
                     <td>${fmt(campaign.received)}</td>
                     <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
