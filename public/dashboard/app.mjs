@@ -1502,7 +1502,12 @@ function renderAdminMarkets() {
           <tbody>
             ${state.markets.map((market) => `
               <tr>
-                <td><span class="table-flag">${marketMeta(market).flag}</span><strong>${escapeHtml(market.display_name || marketMeta(market).name)}</strong><br><small>${escapeHtml(market.market_key)}</small></td>
+                <td>
+                  <div class="entity-cell">
+                    <span class="table-flag">${marketMeta(market).flag}</span>
+                    <div><strong>${escapeHtml(market.display_name || marketMeta(market).name)}</strong><small>${escapeHtml(market.market_key)}</small></div>
+                  </div>
+                </td>
                 <td>${escapeHtml(text(market.region))}</td>
                 <td><em class="badge ${classForStatus(market.status || 'active')}">${escapeHtml(statusLabel(market.status || 'active'))}</em></td>
                 <td>${escapeHtml(text(market.owner))}</td>
@@ -1527,7 +1532,12 @@ function renderAdminProducts() {
           <tbody>
             ${state.products.map((product) => `
               <tr>
-                <td><span class="table-product-image">${productImage(product)}</span><strong>${escapeHtml(productName(product))}</strong><br><small>${escapeHtml(product.product_key)}</small></td>
+                <td>
+                  <div class="entity-cell">
+                    <span class="table-product-image">${productImage(product)}</span>
+                    <div><strong>${escapeHtml(productName(product))}</strong><small>${escapeHtml(product.product_key)}</small></div>
+                  </div>
+                </td>
                 <td>${escapeHtml(product.market_key)}</td>
                 <td>${escapeHtml(text(product.category))}</td>
                 <td><em class="badge ${classForStatus(product.status || 'active')}">${escapeHtml(statusLabel(product.status || 'active'))}</em></td>
@@ -1885,6 +1895,9 @@ function showCatalogForm({ title, fields, values, onSubmit }) {
         if (field === 'status') {
           return `<label><span>Status</span>${select('status', ['active', 'disabled'], values.status || 'active')}</label>`;
         }
+        if (field === 'flag_url' || field === 'image_url') {
+          return mediaField(field, values[field] || '');
+        }
         if (field === 'notes') {
           return `<label><span>Notes</span><textarea name="notes">${escapeHtml(values.notes || '')}</textarea></label>`;
         }
@@ -1900,6 +1913,60 @@ function showCatalogForm({ title, fields, values, onSubmit }) {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
     await onSubmit(payload);
+  });
+
+  document.querySelectorAll('[data-media-upload]').forEach((input) => {
+    input.addEventListener('change', async (event) => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        toast('Vui lòng chọn file ảnh.', 'error');
+        event.currentTarget.value = '';
+        return;
+      }
+      if (file.size > 700 * 1024) {
+        toast('Ảnh tối đa 700KB khi lưu trực tiếp trên trình duyệt.', 'error');
+        event.currentTarget.value = '';
+        return;
+      }
+      const field = event.currentTarget.dataset.mediaUpload;
+      const dataUrl = await readFileAsDataUrl(file);
+      const urlInput = document.querySelector(`[name="${field}"]`);
+      const preview = document.querySelector(`[data-media-preview="${field}"]`);
+      if (urlInput) urlInput.value = dataUrl;
+      if (preview) preview.innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="">`;
+    });
+  });
+}
+
+function mediaField(name, value) {
+  const label = name === 'flag_url' ? 'Ảnh cờ' : 'Ảnh sản phẩm';
+  const preview = value
+    ? `<img src="${escapeHtml(value)}" alt="">`
+    : `<span>${name === 'flag_url' ? 'FLAG' : 'IMG'}</span>`;
+  return `
+    <div class="media-field">
+      <span>${label}</span>
+      <div class="media-preview" data-media-preview="${escapeHtml(name)}">${preview}</div>
+      <label>
+        <span>URL ảnh</span>
+        <input name="${escapeHtml(name)}" value="${escapeHtml(value)}" placeholder="https://... hoặc upload file bên dưới">
+      </label>
+      <label>
+        <span>Upload file ảnh</span>
+        <input type="file" accept="image/*" data-media-upload="${escapeHtml(name)}">
+      </label>
+      <small>File upload được lưu trong trình duyệt dưới dạng data URL. URL ảnh phù hợp hơn nếu cần dùng chung cho nhiều máy.</small>
+    </div>
+  `;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('Không đọc được file ảnh.'));
+    reader.readAsDataURL(file);
   });
 }
 

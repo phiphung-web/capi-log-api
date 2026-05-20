@@ -544,6 +544,70 @@ textarea:focus {
   font-size: 11px;
 }
 
+.entity-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.entity-cell .table-flag,
+.entity-cell .table-product-image {
+  flex: 0 0 auto;
+  margin-right: 0;
+}
+
+.entity-cell strong,
+.entity-cell small {
+  display: block;
+}
+
+.entity-cell small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.media-field {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.media-field > span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.media-field small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.media-preview {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--accent);
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.media-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 button.data-card {
   width: 100%;
 }
