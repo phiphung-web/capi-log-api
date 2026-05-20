@@ -587,7 +587,7 @@ function renderShell(route, content) {
   ].filter((item) => item[0] !== 'admin' || isAdmin());
 
   app.innerHTML = `
-    <div class="dashboard-shell">
+    <div class="dashboard-shell" id="dashboard-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
           <div class="brand-mark">CP</div>
@@ -613,9 +613,10 @@ function renderShell(route, content) {
           <button class="ghost wide" id="logout-btn" type="button">Đăng xuất</button>
         </div>
       </aside>
+      <button class="sidebar-overlay" id="sidebar-overlay" type="button" aria-label="Đóng menu"></button>
       <div class="main">
         <header class="topbar">
-          <button class="icon-btn mobile-only" id="menu-btn" type="button" aria-label="Mở menu">☰</button>
+          <button class="icon-btn mobile-only" id="menu-btn" type="button" aria-label="Mở menu" aria-controls="sidebar" aria-expanded="false">☰</button>
           <div class="title-block">
             <span>${escapeHtml(breadcrumb(route))}</span>
             <h1>${escapeHtml(route.title)}</h1>
@@ -640,16 +641,18 @@ function renderShell(route, content) {
   `;
 
   document.querySelectorAll('[data-go]').forEach((el) => {
-    el.addEventListener('click', () => go(el.dataset.go));
+    el.addEventListener('click', () => {
+      closeSidebar();
+      go(el.dataset.go);
+    });
   });
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('theme-btn')?.addEventListener('click', () => {
     setTheme(state.theme === 'dark' ? 'light' : 'dark');
     render();
   });
-  document.getElementById('menu-btn')?.addEventListener('click', () => {
-    document.getElementById('sidebar')?.classList.toggle('open');
-  });
+  document.getElementById('menu-btn')?.addEventListener('click', () => toggleSidebar());
+  document.getElementById('sidebar-overlay')?.addEventListener('click', closeSidebar);
   document.getElementById('global-refresh')?.addEventListener('click', async () => {
     state.dateFrom = document.getElementById('global-date-from').value || state.dateFrom;
     state.dateTo = document.getElementById('global-date-to').value || state.dateTo;
@@ -664,6 +667,28 @@ function breadcrumb(route) {
   if (route.name === 'productDetail') return `Hệ thống / Sản phẩm / ${route.marketKey}:${route.productKey}`;
   if (route.name === 'admin') return 'Hệ thống / Quản trị';
   return `Hệ thống / ${route.title}`;
+}
+
+function setSidebarOpen(open) {
+  const shell = document.getElementById('dashboard-shell');
+  const sidebar = document.getElementById('sidebar');
+  const menuBtn = document.getElementById('menu-btn');
+  shell?.classList.toggle('sidebar-open', open);
+  sidebar?.classList.toggle('open', open);
+  document.body.classList.toggle('sidebar-lock', open);
+  if (menuBtn) {
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.setAttribute('aria-label', open ? 'Đóng menu' : 'Mở menu');
+  }
+}
+
+function toggleSidebar() {
+  const shell = document.getElementById('dashboard-shell');
+  setSidebarOpen(!shell?.classList.contains('sidebar-open'));
+}
+
+function closeSidebar() {
+  setSidebarOpen(false);
 }
 
 function loadingScreen(label) {
@@ -835,7 +860,7 @@ function renderProductCard(product) {
       </button>
       <dl>
         <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
-        <div><dt>Meta nhận</dt><dd>${fmt(stats.received)}</dd></div>
+        <div><dt>Thành công</dt><dd>${fmt(stats.received)}</dd></div>
         <div><dt>% lỗi</dt><dd>${pctText(stats.errorRate)}</dd></div>
         <div><dt>Nhóm</dt><dd>${escapeHtml(text(product.category))}</dd></div>
       </dl>
@@ -869,7 +894,7 @@ function renderComparePanel(selected) {
               <th>Sản phẩm</th>
               <th>Thị trường</th>
               <th>Sự kiện</th>
-              <th>Meta nhận</th>
+              <th>Thành công</th>
               <th>% lỗi</th>
               <th>Unique users</th>
               <th>Total value</th>
@@ -998,7 +1023,7 @@ function renderProductDetail(marketKey, productKey) {
 
     <div class="kpi-grid product-kpis">
       ${kpiCard('Sự kiện gửi', fmt(summary.sent), 'Tổng sự kiện hệ thống đã gửi')}
-      ${kpiCard('Meta nhận thành công', fmt(summary.received), 'Tổng events_received Meta trả về')}
+      ${kpiCard('Meta nhận thành công', fmt(summary.received), `Số log có meta_status = 'received'`)}
       ${kpiCard('Chênh lệch', fmt(summary.sent - summary.received), 'Sự kiện gửi - Meta nhận')}
       ${kpiCard('Lỗi', fmt(summary.errors), `meta_status = error`)}
       ${kpiCard('% lỗi', pctText(summary.errorRate), `${fmt(summary.errors)} lỗi / ${fmt(summary.sent)} ghi nhận`, summary.errorRate > 15 ? 'error' : summary.errorRate > 5 ? 'warning' : 'healthy')}
@@ -1050,13 +1075,12 @@ function renderProductDetail(marketKey, productKey) {
 
 function summarizeLogs(logs) {
   const sent = logs.length;
-  const received = logs.reduce((sum, log) => sum + n(log.events_received), 0);
   const accepted = logs.filter((log) => log.meta_status === 'received').length;
   const errors = logs.filter((log) => log.meta_status === 'error').length;
   const unknown = logs.filter((log) => !log.meta_status || log.meta_status === 'unknown').length;
   return {
     sent,
-    received,
+    received: accepted,
     accepted,
     errors,
     unknown,
@@ -1106,8 +1130,8 @@ function groupLogs(logs, keyFn) {
       value: 0,
     };
     item.sent += 1;
-    item.received += n(log.events_received);
-    item.accepted += log.meta_status === 'received' ? 1 : 0;
+    item.received += log.meta_status === 'received' ? 1 : 0;
+    item.accepted = item.received;
     item.errors += log.meta_status === 'error' ? 1 : 0;
     item.unknown += !log.meta_status || log.meta_status === 'unknown' ? 1 : 0;
     if (log.user_id) item.users.add(log.user_id);
@@ -2106,6 +2130,11 @@ function showModal(html) {
       <div class="modal-panel">${html}</div>
     </div>
   `;
+  document.body.classList.add('modal-lock');
+  const backdrop = modalRoot.querySelector('.modal-backdrop');
+  backdrop?.addEventListener('click', (event) => {
+    if (event.target === backdrop) closeModal();
+  });
   modalRoot.querySelectorAll('[data-close-modal]').forEach((button) => {
     button.addEventListener('click', closeModal);
   });
@@ -2113,6 +2142,7 @@ function showModal(html) {
 
 function closeModal() {
   modalRoot.innerHTML = '';
+  document.body.classList.remove('modal-lock');
 }
 
 function confirmDialog(message) {
@@ -2131,14 +2161,24 @@ function confirmDialog(message) {
       </div>
     `;
     document.body.appendChild(layer);
-    layer.querySelector('#confirm-cancel').addEventListener('click', () => {
+    document.body.classList.add('confirm-lock');
+
+    const finish = (value) => {
       layer.remove();
-      resolve(false);
+      document.body.classList.remove('confirm-lock');
+      window.removeEventListener('keydown', onKeydown);
+      resolve(value);
+    };
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') finish(false);
+    };
+    window.addEventListener('keydown', onKeydown);
+    const backdrop = layer.querySelector('.confirm-backdrop');
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) finish(false);
     });
-    layer.querySelector('#confirm-ok').addEventListener('click', () => {
-      layer.remove();
-      resolve(true);
-    });
+    layer.querySelector('#confirm-cancel').addEventListener('click', () => finish(false));
+    layer.querySelector('#confirm-ok').addEventListener('click', () => finish(true));
   });
 }
 
@@ -2163,6 +2203,15 @@ function logout() {
 
 window.addEventListener('popstate', render);
 window.addEventListener('resize', drawProductCharts);
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (document.body.classList.contains('confirm-lock')) return;
+  if (modalRoot.innerHTML) {
+    closeModal();
+    return;
+  }
+  closeSidebar();
+});
 
 setTheme(state.theme);
 render();

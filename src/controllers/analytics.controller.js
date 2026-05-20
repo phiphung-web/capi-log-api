@@ -563,7 +563,7 @@ async function reconciliation(req, res) {
   const summarySql = `
     SELECT
       COUNT(*)::integer AS sent_events,
-      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS meta_received_events,
       COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
@@ -584,7 +584,7 @@ async function reconciliation(req, res) {
       p.display_name AS product_display_name,
       p.category AS product_category,
       COUNT(*)::integer AS sent_events,
-      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS meta_received_events,
       COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
@@ -605,7 +605,7 @@ async function reconciliation(req, res) {
       p.display_name,
       p.category
     ORDER BY
-      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      (COUNT(*) - COUNT(*) FILTER (WHERE l.meta_status = 'received')) DESC,
       error_logs DESC,
       sent_events DESC
     LIMIT 50
@@ -615,7 +615,7 @@ async function reconciliation(req, res) {
     SELECT
       l.event_name,
       COUNT(*)::integer AS sent_events,
-      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS meta_received_events,
       COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS accepted_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs,
@@ -625,7 +625,7 @@ async function reconciliation(req, res) {
     WHERE ${scopedWhere}
     GROUP BY l.event_name
     ORDER BY
-      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      (COUNT(*) - COUNT(*) FILTER (WHERE l.meta_status = 'received')) DESC,
       error_logs DESC,
       sent_events DESC
     LIMIT 50
@@ -637,7 +637,7 @@ async function reconciliation(req, res) {
       COALESCE(NULLIF(l.pub_id, ''), '-') AS pub_id,
       COALESCE(NULLIF(l.channel, ''), '-') AS channel,
       COUNT(*)::integer AS sent_events,
-      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS meta_received_events,
       COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs
     FROM capi_event_logs l
@@ -647,7 +647,7 @@ async function reconciliation(req, res) {
       COALESCE(NULLIF(l.pub_id, ''), '-'),
       COALESCE(NULLIF(l.channel, ''), '-')
     ORDER BY
-      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      (COUNT(*) - COUNT(*) FILTER (WHERE l.meta_status = 'received')) DESC,
       error_logs DESC,
       sent_events DESC
     LIMIT 50
@@ -664,14 +664,14 @@ async function reconciliation(req, res) {
         '-'
       ) AS campaign,
       COUNT(*)::integer AS sent_events,
-      COALESCE(SUM(COALESCE(l.events_received, 0)), 0)::integer AS meta_received_events,
+      COUNT(*) FILTER (WHERE l.meta_status = 'received')::integer AS meta_received_events,
       COUNT(*) FILTER (WHERE l.meta_status = 'error')::integer AS error_logs,
       COUNT(*) FILTER (WHERE l.meta_status = 'unknown')::integer AS unknown_logs
     FROM capi_event_logs l
     WHERE ${scopedWhere}
     GROUP BY 1
     ORDER BY
-      (COUNT(*) - COALESCE(SUM(COALESCE(l.events_received, 0)), 0)) DESC,
+      (COUNT(*) - COUNT(*) FILTER (WHERE l.meta_status = 'received')) DESC,
       error_logs DESC,
       sent_events DESC
     LIMIT 50
