@@ -475,6 +475,10 @@ textarea:focus {
   text-align: left;
 }
 
+.product-card {
+  overflow: hidden;
+}
+
 .country-card {
   min-height: 180px;
   display: grid;
@@ -495,6 +499,7 @@ textarea:focus {
 
 .country-flag img,
 .table-flag img,
+.inline-flag img,
 .product-image img,
 .table-product-image img {
   width: 100%;
@@ -653,10 +658,16 @@ button.data-card {
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.card-link img {
+  display: none;
 }
 
 .card-link {
   width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;

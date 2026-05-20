@@ -181,9 +181,18 @@ function marketMeta(market) {
 
   return {
     flag: saved.flag_url ? `<img src="${escapeHtml(saved.flag_url)}" alt="">` : escapeHtml(saved.flag || defaults.flag),
+    inlineFlag: escapeHtml(saved.flag || defaults.flag),
     name: saved.display_name || market?.display_name || defaults.name,
     flagUrl: saved.flag_url || '',
   };
+}
+
+function marketInlineText(market) {
+  const key = String(market?.market_key || '').toUpperCase();
+  const name = marketMeta(market).name;
+  if (!key) return name || '-';
+  if (!name || String(name).toUpperCase() === key) return key;
+  return `${key} ${name}`;
 }
 
 function productMedia(product) {
@@ -758,7 +767,7 @@ function renderMarketDetail(marketKey) {
   return `
     <section class="section-head">
       <div>
-        <h2><span class="inline-flag">${meta.flag}</span>${escapeHtml(meta.name)}</h2>
+        <h2><span class="inline-flag">${meta.inlineFlag}</span>${escapeHtml(meta.name)}</h2>
         <p>${escapeHtml(text(market.region, 'Chưa có region'))} · ${escapeHtml(statusLabel(market.status || 'active'))}</p>
       </div>
       <button class="secondary" data-go="/dashboard/markets" type="button">Quay lại thị trường</button>
@@ -810,7 +819,7 @@ function renderProductCard(product) {
   const stats = productStats(product);
   const key = `${product.market_key}:${product.product_key}`;
   const checked = state.selectedProducts.has(key) ? 'checked' : '';
-  const meta = marketMeta(getMarket(product.market_key));
+  const marketLabel = marketInlineText(getMarket(product.market_key));
   return `
     <article class="product-card data-card">
       <div class="card-top">
@@ -822,7 +831,7 @@ function renderProductCard(product) {
       <div class="product-image">${productImage(product)}</div>
       <button class="card-link" data-go="${productPath(product)}" type="button">
         <strong>${escapeHtml(productName(product))}</strong>
-        <span>${meta.flag} ${escapeHtml(meta.name)} · ${escapeHtml(product.product_key)}</span>
+        <span>${escapeHtml(marketLabel)} · ${escapeHtml(product.product_key)}</span>
       </button>
       <dl>
         <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
@@ -1800,7 +1809,6 @@ function showAccessForm(user) {
       <p class="muted">Chọn thị trường rồi chọn ít nhất 1 sản phẩm trong thị trường đó. Quyền xem thực tế được giới hạn theo sản phẩm đã chọn.</p>
       <div class="access-market-list">
         ${marketsWithProducts.map((market) => {
-          const meta = marketMeta(market);
           const marketProductKeys = market.products.map((product) => `${product.market_key}:${product.product_key}`);
           const hasSelectedProduct = marketProductKeys.some((key) => userProducts.has(key));
           const checked = userMarkets.has(market.market_key) || hasSelectedProduct;
@@ -1808,7 +1816,7 @@ function showAccessForm(user) {
             <section class="access-market">
               <label class="check-row access-market-head">
                 <input name="markets" value="${escapeHtml(market.market_key)}" type="checkbox" data-access-market="${escapeHtml(market.market_key)}" ${checked ? 'checked' : ''}>
-                <span>${meta.flag} ${escapeHtml(meta.name)} <small>${escapeHtml(market.market_key)}</small></span>
+                <span>${escapeHtml(marketInlineText(market))} <small>${escapeHtml(market.market_key)}</small></span>
               </label>
               <div class="access-products">
                 ${market.products.map((product) => {
