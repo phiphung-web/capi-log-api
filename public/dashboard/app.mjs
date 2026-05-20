@@ -1,5 +1,7 @@
 const TOKEN_KEY = 'capi_dashboard_token';
 const THEME_KEY = 'capi_dashboard_theme';
+const MEDIA_KEY = 'capi_dashboard_media';
+const HIDDEN_MARKETS = new Set(['code', 'codex', 'global']);
 
 const state = {
   auth: null,
@@ -8,18 +10,22 @@ const state = {
   dataLoading: false,
   routeLoading: false,
   error: '',
-  dateFrom: ymd(addDays(new Date(), -6)),
+  dateFrom: ymd(new Date()),
   dateTo: ymd(new Date()),
   theme: localStorage.getItem(THEME_KEY) || 'dark',
+  media: readMediaSettings(),
   markets: [],
   products: [],
   logs: [],
   overviewToday: null,
   overviewRange: null,
   reconciliation: null,
+  reconciliationToday: null,
   selectedProducts: new Set(),
   compareData: null,
   productDetailCache: new Map(),
+  detailRef: 'all',
+  chartZoomHours: 24,
   admin: {
     tab: 'users',
     users: [],
@@ -29,6 +35,22 @@ const state = {
 
 const app = document.getElementById('app');
 const modalRoot = document.getElementById('modal-root');
+
+function readMediaSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEDIA_KEY) || '{}');
+    return {
+      markets: parsed.markets || {},
+      products: parsed.products || {},
+    };
+  } catch {
+    return { markets: {}, products: {} };
+  }
+}
+
+function saveMediaSettings() {
+  localStorage.setItem(MEDIA_KEY, JSON.stringify(state.media));
+}
 
 function ymd(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -140,6 +162,50 @@ function roleLabel(role) {
     viewer: 'Người xem',
     user: 'Người dùng',
   }[role] || text(role, 'Người dùng');
+}
+
+function marketMeta(market) {
+  const key = String(market?.market_key || '').toLowerCase();
+  const saved = state.media.markets[key] || {};
+  const defaults = {
+    kh: { flag: '🇰🇭', name: 'Cambodia' },
+    vn: { flag: '🇻🇳', name: 'Vietnam' },
+    th: { flag: '🇹🇭', name: 'Thailand' },
+    id: { flag: '🇮🇩', name: 'Indonesia' },
+    ph: { flag: '🇵🇭', name: 'Philippines' },
+    my: { flag: '🇲🇾', name: 'Malaysia' },
+    mm: { flag: '🇲🇲', name: 'Myanmar' },
+    la: { flag: '🇱🇦', name: 'Laos' },
+    sg: { flag: '🇸🇬', name: 'Singapore' },
+  }[key] || { flag: '🌍', name: market?.display_name || market?.region || market?.market_key || '-' };
+
+  return {
+    flag: saved.flag_url ? `<img src="${escapeHtml(saved.flag_url)}" alt="">` : escapeHtml(saved.flag || defaults.flag),
+    name: saved.display_name || market?.display_name || defaults.name,
+    flagUrl: saved.flag_url || '',
+  };
+}
+
+function productMedia(product) {
+  const key = `${product?.market_key || ''}:${product?.product_key || ''}`;
+  return state.media.products[key] || {};
+}
+
+function productImage(product) {
+  const media = productMedia(product);
+  if (media.image_url) {
+    return `<img src="${escapeHtml(media.image_url)}" alt="">`;
+  }
+  const label = String(product?.display_name || product?.product_key || 'P').slice(0, 2).toUpperCase();
+  return `<span>${escapeHtml(label)}</span>`;
+}
+
+function visibleMarkets(markets = state.markets) {
+  return markets.filter((market) => !HIDDEN_MARKETS.has(String(market.market_key || '').toLowerCase()));
+}
+
+function visibleProducts(products = state.products) {
+  return products.filter((product) => !HIDDEN_MARKETS.has(String(product.market_key || '').toLowerCase()));
 }
 
 function currentRoute() {
@@ -477,10 +543,11 @@ async function loadDashboardData() {
   const today = ymd(new Date());
 
   try {
-    const [overviewToday, overviewRange, reconciliation, markets, products, logs] = await Promise.all([
+    const [overviewToday, overviewRange, reconciliation, reconciliationToday, markets, products, logs] = await Promise.all([
       api.overview({ date_from: today, date_to: today }),
       api.overview({ date_from: state.dateFrom, date_to: state.dateTo }),
       api.reconciliation({ date_from: state.dateFrom, date_to: state.dateTo }),
+      api.reconciliation({ date_from: today, date_to: today }),
       api.markets(),
       api.products(),
       api.logs({ limit: 250, date_from: state.dateFrom, date_to: state.dateTo }),
@@ -489,9 +556,10 @@ async function loadDashboardData() {
     state.overviewToday = overviewToday;
     state.overviewRange = overviewRange;
     state.reconciliation = reconciliation;
-    state.markets = Array.isArray(markets) ? markets : [];
-    state.products = Array.isArray(products) ? products : [];
-    state.logs = Array.isArray(logs) ? logs : [];
+    state.reconciliationToday = reconciliationToday;
+    state.markets = visibleMarkets(Array.isArray(markets) ? markets : []);
+    state.products = visibleProducts(Array.isArray(products) ? products : []);
+    state.logs = (Array.isArray(logs) ? logs : []).filter((log) => !HIDDEN_MARKETS.has(String(log.market_key || '').toLowerCase()));
     state.error = '';
   } catch (err) {
     state.error = err.message || 'Không tải được dữ liệu dashboard.';
@@ -503,7 +571,7 @@ async function loadDashboardData() {
 function renderShell(route, content) {
   const user = state.auth?.user || {};
   const nav = [
-    ['home', '📊', 'Trang chủ', '/dashboard'],
+    ['home', '🏠', 'Trang chủ', '/dashboard'],
     ['markets', '🌍', 'Thị trường', '/dashboard/markets'],
     ['products', '📦', 'Sản phẩm', '/dashboard/products'],
     ['admin', '⚙', 'Quản trị', '/dashboard/admin'],
@@ -516,7 +584,7 @@ function renderShell(route, content) {
           <div class="brand-mark">CP</div>
           <div>
             <strong>CAPI Log Platform</strong>
-            <span>Log CAPI theo thị trường và sản phẩm</span>
+            <span>Đối soát Meta CAPI theo pub và campaign</span>
           </div>
         </div>
         <nav class="nav">
@@ -621,60 +689,31 @@ async function renderRoute(route) {
 }
 
 function renderHome() {
-  const today = state.overviewToday || {};
   const range = state.overviewRange || {};
   const health = systemHealth(range);
+  const user = state.auth?.user || {};
   const activeMarkets = state.markets.filter((market) => String(market.status || 'active') === 'active').length;
   const activeProducts = state.products.filter((product) => String(product.status || 'active') === 'active').length;
   const latest = state.logs[0]?.created_at;
-  const topProducts = (state.reconciliation?.products || [])
-    .slice()
-    .sort((a, b) => n(b.sent_events) - n(a.sent_events))
-    .slice(0, 6);
+  const total = n(range.total_events || range.sent_events);
+  const errorRate = pct(range.error_events || range.error_logs, total);
 
   return `
-    <div class="kpi-grid">
-      ${kpiCard('Thị trường đang hoạt động', activeMarkets, `${fmt(state.markets.length)} thị trường tổng`)}
-      ${kpiCard('Sản phẩm đang hoạt động', activeProducts, `${fmt(state.products.length)} sản phẩm tổng`)}
-      ${kpiCard('Sự kiện hôm nay', fmt(today.total_events), `${fmt(range.total_events)} trong 7 ngày / khoảng lọc`)}
-      ${kpiCard('Tình trạng hệ thống', health.label, health.detail, health.status)}
-      ${kpiCard('Sự kiện gần nhất', latest ? displayDateTime(latest) : '-', 'Theo log mới nhất')}
-    </div>
+    <section class="home-welcome panel">
+      <div>
+        <span class="eyebrow">CAPI Log Platform</span>
+        <h2>Xin chào, ${escapeHtml(user.display_name || user.username || 'bạn')}!</h2>
+        <p>Dashboard đang theo dõi trạng thái nhận log và phản hồi Meta CAPI theo quyền truy cập của bạn.</p>
+      </div>
+      <em class="badge ${classForStatus(health.status)}">${escapeHtml(health.status === 'healthy' ? 'Đang hoạt động' : health.status === 'warning' ? 'Cảnh báo' : 'Lỗi')}</em>
+    </section>
 
-    <div class="split-layout">
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <strong>Top sản phẩm theo số sự kiện</strong>
-            <span>${displayDate(state.dateFrom)} - ${displayDate(state.dateTo)}</span>
-          </div>
-        </div>
-        ${topProducts.length ? `
-          <div class="rank-list">
-            ${topProducts.map((product, index) => `
-              <button class="rank-row" data-go="${productPath(product)}" type="button">
-                <span>${index + 1}</span>
-                <div>
-                  <strong>${escapeHtml(product.product_display_name || product.product_key)}</strong>
-                  <small>${escapeHtml(product.market_key)} · lỗi ${pctText(pct(product.error_logs, product.sent_events))}</small>
-                </div>
-                <b>${fmt(product.sent_events)}</b>
-              </button>
-            `).join('')}
-          </div>
-        ` : emptyState('Chưa có dữ liệu sản phẩm trong khoảng lọc')}
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <strong>Sự kiện gần nhất</strong>
-            <span>250 log mới nhất trong khoảng lọc</span>
-          </div>
-          <button class="secondary" data-go="/dashboard/products" type="button">Xem sản phẩm</button>
-        </div>
-        ${renderLogsTable(state.logs.slice(0, 8))}
-      </section>
+    <div class="home-status-grid">
+      ${kpiCard('Tình trạng hệ thống', health.status === 'healthy' ? 'Đang hoạt động' : health.label, health.detail, health.status)}
+      ${kpiCard('Sự kiện gần nhất nhận lúc', latest ? displayDateTime(latest) : '-', 'Theo log mới nhất')}
+      ${kpiCard('Tỷ lệ lỗi hiện tại', pctText(errorRate), `${fmt(range.error_events || range.error_logs)} lỗi trong khoảng lọc`, health.status)}
+      ${kpiCard('Thị trường hoạt động', activeMarkets, `${fmt(state.markets.length)} thị trường được phép xem`)}
+      ${kpiCard('Sản phẩm hoạt động', activeProducts, `${fmt(state.products.length)} sản phẩm được phép xem`)}
     </div>
   `;
 }
@@ -693,35 +732,33 @@ function renderMarkets() {
   if (!state.markets.length) return emptyState('Chưa có thị trường', 'Khi backend nhận log, thị trường sẽ xuất hiện tại đây.');
   return `
     <div class="card-grid">
-      ${state.markets.map((market) => `
-        <button class="market-card data-card" data-go="/dashboard/markets/${encodeURIComponent(market.market_key)}" type="button">
-          <div class="card-top">
+      ${state.markets.map((market) => {
+        const meta = marketMeta(market);
+        const receiving = n(market.total_logs) > 0 && String(market.status || 'active') === 'active';
+        return `
+          <button class="market-card data-card country-card" data-go="/dashboard/markets/${encodeURIComponent(market.market_key)}" type="button">
+            <div class="country-flag">${meta.flag}</div>
             <div>
-              <strong>${escapeHtml(market.display_name || market.market_key)}</strong>
-              <span>${escapeHtml(market.market_key)}</span>
+              <strong>${escapeHtml(meta.name)}</strong>
+              <span>${escapeHtml(market.market_key.toUpperCase())}${market.region ? ` · ${escapeHtml(market.region)}` : ''}</span>
             </div>
-            <em class="badge ${classForStatus(market.status)}">${escapeHtml(statusLabel(market.status || 'active'))}</em>
-          </div>
-          <dl>
-            <div><dt>Region</dt><dd>${escapeHtml(text(market.region))}</dd></div>
-            <div><dt>Sản phẩm</dt><dd>${fmt(market.total_products)}</dd></div>
-            <div><dt>Log 30 ngày</dt><dd>${fmt(market.total_logs)}</dd></div>
-            <div><dt>Lỗi</dt><dd>${pctText(pct(market.error_logs, market.total_logs))}</dd></div>
-          </dl>
-        </button>
-      `).join('')}
+            <em class="badge ${receiving ? 'good' : 'warn'}">${receiving ? 'Đang nhận log' : 'Ngừng nhận log'}</em>
+          </button>
+        `;
+      }).join('')}
     </div>
   `;
 }
 
 function renderMarketDetail(marketKey) {
   const market = getMarket(marketKey);
+  const meta = marketMeta(market);
   const products = state.products.filter((product) => product.market_key === marketKey);
 
   return `
     <section class="section-head">
       <div>
-        <h2>${escapeHtml(market.display_name || market.market_key)}</h2>
+        <h2><span class="inline-flag">${meta.flag}</span>${escapeHtml(meta.name)}</h2>
         <p>${escapeHtml(text(market.region, 'Chưa có region'))} · ${escapeHtml(statusLabel(market.status || 'active'))}</p>
       </div>
       <button class="secondary" data-go="/dashboard/markets" type="button">Quay lại thị trường</button>
@@ -735,7 +772,7 @@ function renderMarketDetail(marketKey) {
 }
 
 function productStats(product) {
-  const rec = (state.reconciliation?.products || []).find((item) =>
+  const rec = (state.reconciliationToday?.products || []).find((item) =>
     item.market_key === product.market_key && item.product_key === product.product_key
   );
   const sent = n(rec?.sent_events ?? product.total_logs);
@@ -756,7 +793,7 @@ function renderProducts() {
     <section class="section-head">
       <div>
         <h2>Tất cả sản phẩm</h2>
-        <p>Chọn nhiều sản phẩm để đối chiếu sự kiện, lỗi và daily series.</p>
+        <p>Card hiển thị số liệu hôm nay. Chọn nhiều sản phẩm để so sánh theo ngày.</p>
       </div>
       <button class="primary" id="compare-btn" type="button" ${selected.length < 2 ? 'disabled' : ''}>So sánh ${selected.length || ''}</button>
     </section>
@@ -773,6 +810,7 @@ function renderProductCard(product) {
   const stats = productStats(product);
   const key = `${product.market_key}:${product.product_key}`;
   const checked = state.selectedProducts.has(key) ? 'checked' : '';
+  const meta = marketMeta(getMarket(product.market_key));
   return `
     <article class="product-card data-card">
       <div class="card-top">
@@ -781,12 +819,13 @@ function renderProductCard(product) {
         </label>
         <em class="badge ${classForStatus(product.status || 'active')}">${escapeHtml(statusLabel(product.status || 'active'))}</em>
       </div>
+      <div class="product-image">${productImage(product)}</div>
       <button class="card-link" data-go="${productPath(product)}" type="button">
         <strong>${escapeHtml(productName(product))}</strong>
-        <span>${escapeHtml(product.market_key)} · ${escapeHtml(product.product_key)}</span>
+        <span>${meta.flag} ${escapeHtml(meta.name)} · ${escapeHtml(product.product_key)}</span>
       </button>
       <dl>
-        <div><dt>Sự kiện</dt><dd>${fmt(stats.sent)}</dd></div>
+        <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
         <div><dt>Meta nhận</dt><dd>${fmt(stats.received)}</dd></div>
         <div><dt>% lỗi</dt><dd>${pctText(stats.errorRate)}</dd></div>
         <div><dt>Nhóm</dt><dd>${escapeHtml(text(product.category))}</dd></div>
@@ -905,10 +944,13 @@ function renderProductDetail(marketKey, productKey) {
   const detail = currentProductDetail(marketKey, productKey);
   if (!detail) return loadingScreen('Đang tải chi tiết sản phẩm...');
 
-  const logs = detail.logs || [];
+  const allLogs = detail.logs || [];
+  const refOptions = Array.from(new Set(allLogs.map(logRefKey).filter(Boolean))).sort();
+  const activeRef = refOptions.includes(state.detailRef) ? state.detailRef : 'all';
+  if (state.detailRef !== activeRef) state.detailRef = activeRef;
+  const logs = activeRef === 'all' ? allLogs : allLogs.filter((log) => logRefKey(log) === activeRef);
   const summary = summarizeLogs(logs);
-  const events = groupLogs(logs, (log) => log.event_name || '-');
-  const campaigns = groupLogs(logs, campaignKey);
+  const events = buildEventDetails(logs);
   const chartType = detail.chartType || 'line';
 
   setTimeout(drawProductCharts);
@@ -935,52 +977,64 @@ function renderProductDetail(marketKey, productKey) {
       <div class="date-row">
         <label><span>Ngày bắt đầu</span><input id="detail-date-from" type="date" value="${state.dateFrom}"></label>
         <label><span>Ngày kết thúc</span><input id="detail-date-to" type="date" value="${state.dateTo}"></label>
+        <label><span>Ref</span>
+          <select id="detail-ref">
+            <option value="all">Tất cả ref</option>
+            ${refOptions.map((ref) => `<option value="${escapeHtml(ref)}" ${activeRef === ref ? 'selected' : ''}>${escapeHtml(ref)}</option>`).join('')}
+          </select>
+        </label>
         <button class="primary" id="detail-apply" type="button">Áp dụng</button>
       </div>
     </section>
 
     <div class="kpi-grid product-kpis">
-      ${kpiCard('Tổng sự kiện gửi', fmt(summary.sent), 'Backend đã ghi nhận')}
-      ${kpiCard('Meta nhận', fmt(summary.received), `${pctText(summary.matchRate)} match rate`)}
-      ${kpiCard('% lỗi', pctText(summary.errorRate), `${fmt(summary.errors)} log lỗi`, summary.errorRate > 15 ? 'error' : summary.errorRate > 5 ? 'warning' : 'healthy')}
-      ${kpiCard('% chưa rõ', pctText(summary.unknownRate), `${fmt(summary.unknown)} log unknown`)}
-      ${kpiCard('Tỷ lệ khớp', pctText(summary.matchRate), 'events_received / events sent')}
-    </div>
-
-    <div class="split-layout">
-      <section class="panel">
-        <div class="panel-head"><strong>Phân loại theo event_name</strong></div>
-        ${renderEventBreakdown(events)}
-      </section>
-      <section class="panel">
-        <div class="panel-head"><strong>Phân loại theo Campaign / Ref</strong></div>
-        ${renderCampaignBreakdown(campaigns)}
-      </section>
+      ${kpiCard('Sự kiện ghi nhận', fmt(summary.sent), 'Tổng số log records')}
+      ${kpiCard('Meta đã nhận', fmt(summary.received), 'Tổng SUM(events_received)')}
+      ${kpiCard('Lỗi', fmt(summary.errors), `meta_status = error`)}
+      ${kpiCard('% lỗi', pctText(summary.errorRate), `${fmt(summary.errors)} lỗi / ${fmt(summary.sent)} ghi nhận`, summary.errorRate > 15 ? 'error' : summary.errorRate > 5 ? 'warning' : 'healthy')}
+      ${kpiCard('Tỷ lệ khớp', pctText(summary.matchRate), 'Meta nhận / ghi nhận')}
     </div>
 
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>So sánh sự kiện theo giờ</strong>
-          <span>Hôm nay vs Hôm qua vs Cùng ngày tuần trước</span>
+          <strong>Xu hướng và so sánh sự kiện</strong>
+          <span>Hôm nay vs Hôm qua vs Cùng ngày tuần trước · hover để xem tooltip</span>
         </div>
-        <select id="chart-type">
-          <option value="line" ${chartType === 'line' ? 'selected' : ''}>Line</option>
-          <option value="bar" ${chartType === 'bar' ? 'selected' : ''}>Bar</option>
-          <option value="area" ${chartType === 'area' ? 'selected' : ''}>Area</option>
-        </select>
+        <div class="chart-controls">
+          <select id="chart-type">
+            <option value="line" ${chartType === 'line' ? 'selected' : ''}>Line</option>
+            <option value="bar" ${chartType === 'bar' ? 'selected' : ''}>Bar</option>
+            <option value="area" ${chartType === 'area' ? 'selected' : ''}>Area</option>
+          </select>
+          <button class="chip ${state.chartZoomHours === 24 ? 'active' : ''}" data-zoom-hours="24" type="button">24h</button>
+          <button class="chip ${state.chartZoomHours === 12 ? 'active' : ''}" data-zoom-hours="12" type="button">12h</button>
+          <button class="chip ${state.chartZoomHours === 6 ? 'active' : ''}" data-zoom-hours="6" type="button">6h</button>
+        </div>
       </div>
       <canvas id="hourly-chart" width="1200" height="360" data-market="${escapeHtml(marketKey)}" data-product="${escapeHtml(productKey)}"></canvas>
+      <div class="chart-tooltip" id="chart-tooltip"></div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>Log chi tiết gần nhất</strong>
-          <span>Click từng dòng để xem payload/meta response</span>
+          <strong>Phân loại theo Event Name và Campaign</strong>
+          <span>Mỗi event hiển thị campaign ID để đối chiếu với Ads Manager.</span>
         </div>
       </div>
-      ${renderLogsTable(logs)}
+      ${renderEventSections(events)}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <strong>Log gần nhất</strong>
+          <span>Hiển thị nhanh 10 log gần nhất theo filter hiện tại.</span>
+        </div>
+        <button class="secondary" id="view-all-logs" type="button">Xem tất cả</button>
+      </div>
+      ${renderLogsTable(logs.slice(0, 10))}
     </section>
   `;
 }
@@ -1016,6 +1070,16 @@ function campaignKey(log) {
   );
 }
 
+function logRefKey(log) {
+  const custom = extractCustomData(log);
+  return text(custom.ref || log.ref, '-');
+}
+
+function isFirstPurchase(log) {
+  const custom = extractCustomData(log);
+  return log.is_first_purchase === true || custom.is_first_purchase === true || custom.is_first_purchase === 'true';
+}
+
 function groupLogs(logs, keyFn) {
   const map = new Map();
   logs.forEach((log) => {
@@ -1038,6 +1102,88 @@ function groupLogs(logs, keyFn) {
     map.set(key, item);
   });
   return Array.from(map.values()).sort((a, b) => b.sent - a.sent);
+}
+
+function buildEventDetails(logs) {
+  return groupLogs(logs, (log) => log.event_name || '-').map((event) => {
+    const eventLogs = logs.filter((log) => (log.event_name || '-') === event.name);
+    const purchaseLogs = event.name === 'Purchase' ? eventLogs : [];
+    const firstPurchases = purchaseLogs.filter(isFirstPurchase);
+    const returning = purchaseLogs.filter((log) => !isFirstPurchase(log));
+    const totalDeposit = purchaseLogs.reduce((sum, log) => sum + n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount), 0);
+    return {
+      ...event,
+      logs: eventLogs,
+      campaigns: groupLogs(eventLogs, campaignKey),
+      firstPurchases: firstPurchases.length,
+      returningPurchases: returning.length,
+      avgValue: purchaseLogs.length ? event.value / purchaseLogs.length : 0,
+      totalDeposit,
+    };
+  });
+}
+
+function renderEventSections(events) {
+  if (!events.length) return emptyState('Không có event trong khoảng lọc');
+  return `
+    <div class="event-stack">
+      ${events.map((event) => `
+        <article class="event-card">
+          <div class="event-head">
+            <div>
+              <strong>${escapeHtml(event.name)}</strong>
+              <span>${fmt(event.sent)} ghi nhận · ${fmt(event.received)} Meta nhận · lỗi ${pctText(pct(event.errors, event.sent))}</span>
+            </div>
+            ${sparkline(event.logs, event.name)}
+          </div>
+          <div class="event-metrics">
+            <div><span>Unique users</span><strong>${fmt(event.users.size)}</strong></div>
+            <div><span>Tổng value</span><strong>${money(event.value)}</strong></div>
+            ${event.name === 'Purchase' ? `
+              <div><span>Nạp mới</span><strong>${fmt(event.firstPurchases)}</strong></div>
+              <div><span>Nạp cũ</span><strong>${fmt(event.returningPurchases)}</strong></div>
+              <div><span>Giá trị TB</span><strong>${money(event.avgValue)}</strong></div>
+              <div><span>Tổng deposit</span><strong>${money(event.totalDeposit)}</strong></div>
+            ` : ''}
+          </div>
+          <div class="table-wrap campaign-table">
+            <table>
+              <thead><tr><th>Campaign ID</th><th>Sự kiện</th><th>Meta nhận</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
+              <tbody>
+                ${event.campaigns.slice(0, 20).map((campaign) => `
+                  <tr>
+                    <td class="clip">${escapeHtml(campaign.name)}</td>
+                    <td>${fmt(campaign.sent)}</td>
+                    <td>${fmt(campaign.received)}</td>
+                    <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
+                    <td>${money(campaign.value)}</td>
+                    <td>${sparkline(event.logs.filter((log) => campaignKey(log) === campaign.name), campaign.name, true)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
+function sparkline(logs, label, compact = false) {
+  const values = hourly(logs);
+  const max = Math.max(1, ...values);
+  const width = compact ? 120 : 180;
+  const height = compact ? 34 : 46;
+  const points = values.map((value, index) => {
+    const x = (index / 23) * width;
+    const y = height - 4 - (value / max) * (height - 8);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `
+    <svg class="sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)}">
+      <polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  `;
 }
 
 function renderEventBreakdown(rows) {
@@ -1127,10 +1273,11 @@ function drawProductCharts() {
   if (!detail) return;
 
   const type = detail.chartType || 'line';
+  const filter = (logs) => state.detailRef === 'all' ? logs : logs.filter((log) => logRefKey(log) === state.detailRef);
   const series = [
-    { label: 'Hôm nay', color: '#22d3ee', values: hourly(detail.compare.today || []) },
-    { label: 'Hôm qua', color: '#14b8a6', values: hourly(detail.compare.yesterday || []) },
-    { label: 'Cùng ngày tuần trước', color: '#f59e0b', values: hourly(detail.compare.lastWeek || []) },
+    { label: 'Hôm nay', color: '#22d3ee', values: hourly(filter(detail.compare.today || [])) },
+    { label: 'Hôm qua', color: '#14b8a6', values: hourly(filter(detail.compare.yesterday || [])) },
+    { label: 'Cùng ngày tuần trước', color: '#f59e0b', values: hourly(filter(detail.compare.lastWeek || [])) },
   ];
   drawChart(canvas, series, type);
 }
@@ -1158,7 +1305,14 @@ function drawChart(canvas, series, type) {
   const padding = { left: 44, right: 18, top: 24, bottom: 42 };
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
-  const max = Math.max(1, ...series.flatMap((item) => item.values));
+  const visibleHours = Math.min(24, Math.max(1, state.chartZoomHours || 24));
+  const startHour = 24 - visibleHours;
+  const hourLabels = Array.from({ length: visibleHours }, (_, index) => startHour + index);
+  const visibleSeries = series.map((item) => ({
+    ...item,
+    values: item.values.slice(startHour, 24),
+  }));
+  const max = Math.max(1, ...visibleSeries.flatMap((item) => item.values));
 
   ctx.clearRect(0, 0, width, height);
   ctx.font = '12px Inter, system-ui, sans-serif';
@@ -1174,22 +1328,28 @@ function drawChart(canvas, series, type) {
     ctx.fillText(fmt((max * i) / 4), 8, y + 4);
   }
 
-  for (let h = 0; h < 24; h += 1) {
-    if (h % 3 === 0) {
-      const x = padding.left + (plotW * h) / 23;
+  hourLabels.forEach((h, index) => {
+    if (h % 3 === 0 || visibleHours <= 6) {
+      const denom = Math.max(1, visibleHours - 1);
+      const x = padding.left + (plotW * index) / denom;
       ctx.fillText(`${h}h`, x - 8, height - 14);
     }
-  }
+  });
 
-  series.forEach((item, seriesIndex) => {
+  const hoverPoints = [];
+  visibleSeries.forEach((item, seriesIndex) => {
     ctx.strokeStyle = item.color;
     ctx.fillStyle = item.color;
     ctx.lineWidth = 2;
     const points = item.values.map((value, index) => ({
-      x: padding.left + (plotW * index) / 23,
+      x: padding.left + (plotW * index) / Math.max(1, visibleHours - 1),
       y: padding.top + plotH - (plotH * value) / max,
       value,
+      hour: hourLabels[index],
+      label: item.label,
+      color: item.color,
     }));
+    hoverPoints.push(...points);
 
     if (type === 'bar') {
       const barW = Math.max(3, plotW / 24 / 4);
@@ -1226,6 +1386,37 @@ function drawChart(canvas, series, type) {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
     ctx.fillText(item.label, legendX + 16, 18);
     legendX += ctx.measureText(item.label).width + 44;
+  });
+
+  canvas._chartHoverPoints = hoverPoints;
+  bindChartTooltip(canvas);
+}
+
+function bindChartTooltip(canvas) {
+  if (canvas._tooltipBound) return;
+  canvas._tooltipBound = true;
+  canvas.addEventListener('mousemove', (event) => {
+    const tooltip = document.getElementById('chart-tooltip');
+    const points = canvas._chartHoverPoints || [];
+    if (!tooltip || !points.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const nearest = points.reduce((best, point) => {
+      const distance = Math.hypot(point.x - x, point.y - y);
+      return !best || distance < best.distance ? { point, distance } : best;
+    }, null);
+    if (!nearest || nearest.distance > 38) {
+      tooltip.classList.remove('visible');
+      return;
+    }
+    tooltip.innerHTML = `<strong>${escapeHtml(nearest.point.label)} · ${nearest.point.hour}h</strong><span>${fmt(nearest.point.value)} sự kiện</span>`;
+    tooltip.style.left = `${Math.min(rect.width - 160, Math.max(8, nearest.point.x + 12))}px`;
+    tooltip.style.top = `${Math.max(8, nearest.point.y - 46)}px`;
+    tooltip.classList.add('visible');
+  });
+  canvas.addEventListener('mouseleave', () => {
+    document.getElementById('chart-tooltip')?.classList.remove('visible');
   });
 }
 
@@ -1311,7 +1502,7 @@ function renderAdminMarkets() {
           <tbody>
             ${state.markets.map((market) => `
               <tr>
-                <td><strong>${escapeHtml(market.display_name || market.market_key)}</strong><br><small>${escapeHtml(market.market_key)}</small></td>
+                <td><span class="table-flag">${marketMeta(market).flag}</span><strong>${escapeHtml(market.display_name || marketMeta(market).name)}</strong><br><small>${escapeHtml(market.market_key)}</small></td>
                 <td>${escapeHtml(text(market.region))}</td>
                 <td><em class="badge ${classForStatus(market.status || 'active')}">${escapeHtml(statusLabel(market.status || 'active'))}</em></td>
                 <td>${escapeHtml(text(market.owner))}</td>
@@ -1336,7 +1527,7 @@ function renderAdminProducts() {
           <tbody>
             ${state.products.map((product) => `
               <tr>
-                <td><strong>${escapeHtml(productName(product))}</strong><br><small>${escapeHtml(product.product_key)}</small></td>
+                <td><span class="table-product-image">${productImage(product)}</span><strong>${escapeHtml(productName(product))}</strong><br><small>${escapeHtml(product.product_key)}</small></td>
                 <td>${escapeHtml(product.market_key)}</td>
                 <td>${escapeHtml(text(product.category))}</td>
                 <td><em class="badge ${classForStatus(product.status || 'active')}">${escapeHtml(statusLabel(product.status || 'active'))}</em></td>
@@ -1353,16 +1544,37 @@ function renderAdminProducts() {
 }
 
 function renderMaintenance() {
+  const oldest = state.logs.length ? state.logs.reduce((min, log) => !min || new Date(log.created_at) < new Date(min) ? log.created_at : min, null) : null;
+  const newest = state.logs[0]?.created_at || null;
+  const approxSize = state.logs.reduce((sum, log) => sum + JSON.stringify(log).length, 0);
   return `
+    <div class="maintenance-stats">
+      ${kpiCard('Log hiện tại', fmt(state.logs.length), 'Theo mẫu log đang tải trong dashboard')}
+      ${kpiCard('Log cũ nhất', oldest ? displayDateTime(oldest) : '-', 'Trong dữ liệu đang xem')}
+      ${kpiCard('Log mới nhất', newest ? displayDateTime(newest) : '-', 'Trong dữ liệu đang xem')}
+      ${kpiCard('Dung lượng ước tính', `${fmt(approxSize / 1024, 1)} KB`, 'Ước tính từ payload client đã tải')}
+    </div>
     <div class="split-layout">
       <section class="panel">
-        <div class="panel-head"><strong>Gom metrics hàng ngày</strong></div>
-        <label class="field"><span>Số ngày gom metrics</span><input id="aggregate-days" type="number" min="1" max="370" value="31"></label>
-        <button class="primary" id="aggregate-btn" type="button">Gom metrics hàng ngày</button>
+        <div class="panel-head"><strong>Gom metrics</strong><span>Tự động theo tháng, gửi số ngày tương ứng API hiện có.</span></div>
+        <label class="field"><span>Khoảng gom</span>
+          <select id="aggregate-months">
+            <option value="31">1 tháng</option>
+            <option value="62" selected>2 tháng</option>
+            <option value="93">3 tháng</option>
+          </select>
+        </label>
+        <button class="primary" id="aggregate-btn" type="button">Gom metrics</button>
       </section>
       <section class="panel">
-        <div class="panel-head"><strong>Xóa raw log cũ</strong></div>
-        <label class="field"><span>Số ngày giữ lại</span><input id="retention-days" type="number" min="7" max="370" value="31"></label>
+        <div class="panel-head"><strong>Lưu trữ raw log</strong><span>Mặc định giữ 2 tháng gần nhất để tránh nặng database.</span></div>
+        <label class="field"><span>Thời gian giữ chi tiết</span>
+          <select id="retention-days">
+            <option value="31">1 tháng</option>
+            <option value="62" selected>2 tháng</option>
+            <option value="93">3 tháng</option>
+          </select>
+        </label>
         <button class="danger" id="purge-btn" type="button">Xóa log cũ</button>
       </section>
     </div>
@@ -1409,8 +1621,14 @@ function bindScreenEvents(route) {
   document.getElementById('detail-apply')?.addEventListener('click', async () => {
     state.dateFrom = document.getElementById('detail-date-from').value || state.dateFrom;
     state.dateTo = document.getElementById('detail-date-to').value || state.dateTo;
+    state.detailRef = document.getElementById('detail-ref')?.value || 'all';
     state.productDetailCache.clear();
     await loadDashboardData();
+    render();
+  });
+
+  document.getElementById('detail-ref')?.addEventListener('change', (event) => {
+    state.detailRef = event.currentTarget.value || 'all';
     render();
   });
 
@@ -1420,6 +1638,20 @@ function bindScreenEvents(route) {
       detail.chartType = event.currentTarget.value;
       drawProductCharts();
     }
+  });
+
+  document.querySelectorAll('[data-zoom-hours]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.chartZoomHours = n(button.dataset.zoomHours) || 24;
+      drawProductCharts();
+      render();
+    });
+  });
+
+  document.getElementById('view-all-logs')?.addEventListener('click', () => {
+    const detail = currentProductDetail(route.marketKey, route.productKey);
+    const logs = (detail?.logs || []).filter((log) => state.detailRef === 'all' || logRefKey(log) === state.detailRef);
+    showAllLogsModal(logs, 0);
   });
 
   document.querySelectorAll('[data-admin-tab]').forEach((button) => {
@@ -1496,7 +1728,7 @@ function bindAdminEvents() {
   });
 
   document.getElementById('aggregate-btn')?.addEventListener('click', async () => {
-    const days = n(document.getElementById('aggregate-days').value || 31);
+    const days = n(document.getElementById('aggregate-months').value || 62);
     if (!(await confirmDialog(`Bạn có chắc muốn gom metrics ${days} ngày?`))) return;
     await runAdminAction(() => api.aggregateDaily(days), 'Đã gom metrics hàng ngày.');
   });
@@ -1602,13 +1834,20 @@ function showAccessForm(user) {
 }
 
 function showMarketForm(market) {
+  const meta = marketMeta(market);
   showCatalogForm({
     title: `Sửa thị trường ${market.market_key}`,
-    fields: ['display_name', 'region', 'status', 'owner', 'notes'],
-    values: market,
+    fields: ['display_name', 'region', 'status', 'flag_url', 'owner', 'notes'],
+    values: { ...market, flag_url: meta.flagUrl },
     onSubmit: async (payload) => {
       if (!(await confirmDialog(`Bạn có chắc muốn lưu thị trường ${market.market_key}?`))) return;
-      await runAdminAction(() => api.updateMarket(market.market_key, payload), 'Đã cập nhật thị trường.');
+      const { flag_url, ...apiPayload } = payload;
+      state.media.markets[String(market.market_key).toLowerCase()] = {
+        ...(state.media.markets[String(market.market_key).toLowerCase()] || {}),
+        flag_url,
+      };
+      saveMediaSettings();
+      await runAdminAction(() => api.updateMarket(market.market_key, apiPayload), 'Đã cập nhật thị trường.');
       await loadDashboardData();
       closeModal();
       render();
@@ -1617,13 +1856,20 @@ function showMarketForm(market) {
 }
 
 function showProductForm(product) {
+  const media = productMedia(product);
   showCatalogForm({
     title: `Sửa sản phẩm ${product.market_key}:${product.product_key}`,
-    fields: ['display_name', 'category', 'status', 'owner', 'notes'],
-    values: product,
+    fields: ['display_name', 'category', 'status', 'image_url', 'owner', 'notes'],
+    values: { ...product, image_url: media.image_url || '' },
     onSubmit: async (payload) => {
       if (!(await confirmDialog(`Bạn có chắc muốn lưu sản phẩm ${product.product_key}?`))) return;
-      await runAdminAction(() => api.updateProduct(product.market_key, product.product_key, payload), 'Đã cập nhật sản phẩm.');
+      const { image_url, ...apiPayload } = payload;
+      state.media.products[`${product.market_key}:${product.product_key}`] = {
+        ...(state.media.products[`${product.market_key}:${product.product_key}`] || {}),
+        image_url,
+      };
+      saveMediaSettings();
+      await runAdminAction(() => api.updateProduct(product.market_key, product.product_key, apiPayload), 'Đã cập nhật sản phẩm.');
       await loadDashboardData();
       closeModal();
       render();
@@ -1712,6 +1958,37 @@ function showLogModal(log) {
       </details>
     </div>
   `);
+}
+
+function showAllLogsModal(logs, page = 0) {
+  const pageSize = 25;
+  const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+  const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const rows = logs.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  showModal(`
+    <div class="log-modal">
+      <div class="modal-head">
+        <div>
+          <h2>Tất cả log</h2>
+          <p>${fmt(logs.length)} log · trang ${safePage + 1}/${totalPages}</p>
+        </div>
+        <button class="ghost" data-close-modal type="button">Đóng</button>
+      </div>
+      ${renderLogsTable(rows)}
+      <div class="modal-actions">
+        <button class="secondary" id="logs-prev" type="button" ${safePage === 0 ? 'disabled' : ''}>Trang trước</button>
+        <button class="secondary" id="logs-next" type="button" ${safePage >= totalPages - 1 ? 'disabled' : ''}>Trang sau</button>
+      </div>
+    </div>
+  `);
+  document.getElementById('logs-prev')?.addEventListener('click', () => showAllLogsModal(logs, safePage - 1));
+  document.getElementById('logs-next')?.addEventListener('click', () => showAllLogsModal(logs, safePage + 1));
+  modalRoot.querySelectorAll('[data-log-id]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const log = logs.find((item) => String(item.id) === String(row.dataset.logId));
+      if (log) showLogModal(log);
+    });
+  });
 }
 
 function showModal(html) {
