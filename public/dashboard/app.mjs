@@ -988,9 +988,9 @@ function renderProductDetail(marketKey, productKey) {
     </section>
 
     <div class="kpi-grid product-kpis">
-      ${kpiCard('Log ghi nhận', fmt(summary.sent), 'Tổng số dòng log trong hệ thống')}
-      ${kpiCard('Log Meta nhận', fmt(summary.accepted), 'Số log có meta_status = received')}
-      ${kpiCard('Meta events_received', fmt(summary.received), 'Tổng SUM(events_received) từ Meta')}
+      ${kpiCard('Sự kiện gửi', fmt(summary.sent), 'Tổng sự kiện hệ thống đã gửi')}
+      ${kpiCard('Meta nhận thành công', fmt(summary.received), 'Tổng events_received Meta trả về')}
+      ${kpiCard('Chênh lệch', fmt(summary.sent - summary.received), 'Sự kiện gửi - Meta nhận')}
       ${kpiCard('Lỗi', fmt(summary.errors), `meta_status = error`)}
       ${kpiCard('% lỗi', pctText(summary.errorRate), `${fmt(summary.errors)} lỗi / ${fmt(summary.sent)} ghi nhận`, summary.errorRate > 15 ? 'error' : summary.errorRate > 5 ? 'warning' : 'healthy')}
     </div>
@@ -1137,7 +1137,7 @@ function renderEventSections(events) {
           <div class="event-head">
             <div>
               <strong>${escapeHtml(event.name)}</strong>
-              <span>${fmt(event.sent)} log · ${fmt(event.accepted)} log Meta nhận · ${fmt(event.received)} events_received · lỗi ${pctText(pct(event.errors, event.sent))}</span>
+              <span>${fmt(event.sent)} gửi · ${fmt(event.received)} Meta nhận thành công · lỗi ${pctText(pct(event.errors, event.sent))}</span>
             </div>
             ${sparkline(event.logs, event.name)}
           </div>
@@ -1153,14 +1153,14 @@ function renderEventSections(events) {
           </div>
           <div class="table-wrap campaign-table">
             <table>
-              <thead><tr><th>Campaign ID</th><th>Log</th><th>Log Meta nhận</th><th>events_received</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
+              <thead><tr><th>Campaign ID</th><th>Sự kiện gửi</th><th>Meta nhận thành công</th><th>Chênh lệch</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
               <tbody>
                 ${event.campaigns.slice(0, 20).map((campaign) => `
                   <tr>
                     <td class="clip ${campaign.name === 'Không có campaign' ? 'muted-cell' : ''}">${escapeHtml(campaign.name)}</td>
                     <td>${fmt(campaign.sent)}</td>
-                    <td>${fmt(campaign.accepted)}</td>
                     <td>${fmt(campaign.received)}</td>
+                    <td>${fmt(campaign.sent - campaign.received)}</td>
                     <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
                     <td>${money(campaign.value)}</td>
                     <td>${sparkline(event.logs.filter((log) => campaignKey(log) === campaign.name), campaign.name, true)}</td>
