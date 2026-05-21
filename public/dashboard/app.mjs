@@ -99,7 +99,11 @@ function displayDateTime(value) {
 }
 
 function n(value) {
-  return Number(value || 0);
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const normalized = String(value).replace(/,/g, '').trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function fmt(value, digits = 0) {
@@ -109,7 +113,11 @@ function fmt(value, digits = 0) {
 }
 
 function money(value, currency = 'USD') {
-  return `${fmt(value, 2)} ${currency || 'USD'}`;
+  const code = String(currency || 'USD').trim().toUpperCase();
+  return `${new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n(value))} ${code || 'USD'}`;
 }
 
 function pct(value, total) {
@@ -809,12 +817,12 @@ function productStats(product) {
   const rec = (state.reconciliationToday?.products || []).find((item) =>
     item.market_key === product.market_key && item.product_key === product.product_key
   );
-  const sent = n(rec?.sent_events ?? product.total_logs);
-  const errors = n(rec?.error_logs ?? product.error_logs);
+  const sent = n(rec?.sent_events);
+  const errors = n(rec?.error_logs);
   return {
     sent,
     errors,
-    received: n(rec?.meta_received_events ?? product.received_logs),
+    received: n(rec?.meta_received_events),
     errorRate: pct(errors, sent),
   };
 }
@@ -2074,6 +2082,8 @@ function showLogModal(log) {
           ['Pub ID', log.pub_id],
           ['Channel', log.channel],
           ['Platform', log.platform],
+          ['Value', money(log.value, log.currency)],
+          ['Total deposit', money(log.total_deposit_amount || extractCustomData(log).total_deposit_amount, log.currency)],
           ['Meta status', log.meta_status],
           ['Events received', log.events_received],
           ['FB trace', log.fbtrace_id],
