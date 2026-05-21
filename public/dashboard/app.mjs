@@ -1058,6 +1058,9 @@ function renderProductDetail(marketKey, productKey) {
       <div class="chart-tooltip" id="chart-tooltip"></div>
     </section>
 
+    ${renderPurchaseInsights(logs)}
+    ${renderParameterBreakdowns(logs)}
+
     <section class="panel">
       <div class="panel-head">
         <div>
@@ -1118,9 +1121,23 @@ function logRefKey(log) {
   return text(custom.ref || log.ref, '-');
 }
 
+function identityKey(log) {
+  const custom = extractCustomData(log);
+  return text(log.user_id || custom.user_id || log.external_id || custom.external_id || log.username || custom.username, '');
+}
+
+function customValue(log, key, fallback = '-') {
+  const custom = extractCustomData(log);
+  return text(custom[key] ?? log[key], fallback);
+}
+
 function isFirstPurchase(log) {
   const custom = extractCustomData(log);
   return log.is_first_purchase === true || custom.is_first_purchase === true || custom.is_first_purchase === 'true';
+}
+
+function isPurchase(log) {
+  return String(log.event_name || '').toLowerCase() === 'purchase';
 }
 
 function groupLogs(logs, keyFn) {
@@ -1149,6 +1166,47 @@ function groupLogs(logs, keyFn) {
   return Array.from(map.values()).sort((a, b) => b.sent - a.sent);
 }
 
+function groupDimension(logs, keyFn) {
+  const map = new Map();
+  logs.forEach((log) => {
+    const key = text(keyFn(log), '-');
+    const item = map.get(key) || {
+      name: key,
+      sent: 0,
+      received: 0,
+      errors: 0,
+      unknown: 0,
+      users: new Set(),
+      firstUsers: new Set(),
+      purchaseEvents: 0,
+      firstPurchases: 0,
+      returningPurchases: 0,
+      value: 0,
+      deposit: 0,
+    };
+    const user = identityKey(log);
+    const purchase = isPurchase(log);
+    item.sent += 1;
+    item.received += log.meta_status === 'received' ? 1 : 0;
+    item.errors += log.meta_status === 'error' ? 1 : 0;
+    item.unknown += !log.meta_status || log.meta_status === 'unknown' ? 1 : 0;
+    if (user) item.users.add(user);
+    if (purchase) {
+      item.purchaseEvents += 1;
+      item.value += n(log.value || extractCustomData(log).value);
+      item.deposit += n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount);
+      if (isFirstPurchase(log)) {
+        item.firstPurchases += 1;
+        if (user) item.firstUsers.add(user);
+      } else {
+        item.returningPurchases += 1;
+      }
+    }
+    map.set(key, item);
+  });
+  return Array.from(map.values()).sort((a, b) => b.sent - a.sent);
+}
+
 function buildEventDetails(logs) {
   return groupLogs(logs, (log) => log.event_name || '-').map((event) => {
     const eventLogs = logs.filter((log) => (log.event_name || '-') === event.name);
@@ -1160,12 +1218,166 @@ function buildEventDetails(logs) {
       ...event,
       logs: eventLogs,
       campaigns: groupLogs(eventLogs, campaignKey),
+      refs: groupLogs(eventLogs, logRefKey),
       firstPurchases: firstPurchases.length,
       returningPurchases: returning.length,
       avgValue: purchaseLogs.length ? event.value / purchaseLogs.length : 0,
       totalDeposit,
     };
   });
+}
+
+function renderPurchaseInsights(logs) {
+  const purchaseLogs = logs.filter(isPurchase);
+  if (!purchaseLogs.length) return '';
+
+  const firstLogs = purchaseLogs.filter(isFirstPurchase);
+  const returningLogs = purchaseLogs.filter((log) => !isFirstPurchase(log));
+  const firstUsers = new Set(firstLogs.map(identityKey).filter(Boolean));
+  const returningUsers = new Set(returningLogs.map(identityKey).filter(Boolean));
+  const totalValue = purchaseLogs.reduce((sum, log) => sum + n(log.value || extractCustomData(log).value), 0);
+  const totalDeposit = purchaseLogs.reduce((sum, log) => sum + n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount), 0);
+  const avgValue = purchaseLogs.length ? totalValue / purchaseLogs.length : 0;
+
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <strong>Phân tích Purchase</strong>
+          <span>Tách nạp mới/nạp cũ theo is_first_purchase và user_id trong payload.</span>
+        </div>
+      </div>
+      <div class="event-metrics purchase-metrics">
+        <div><span>Purchase gửi</span><strong>${fmt(purchaseLogs.length)}</strong></div>
+        <div><span>Purchase thành công</span><strong>${fmt(purchaseLogs.filter((log) => log.meta_status === 'received').length)}</strong></div>
+        <div><span>User nạp mới</span><strong>${fmt(firstUsers.size || firstLogs.length)}</strong></div>
+        <div><span>Lượt nạp mới</span><strong>${fmt(firstLogs.length)}</strong></div>
+        <div><span>User nạp cũ</span><strong>${fmt(returningUsers.size || returningLogs.length)}</strong></div>
+        <div><span>Lượt nạp cũ</span><strong>${fmt(returningLogs.length)}</strong></div>
+        <div><span>Tổng value</span><strong>${money(totalValue)}</strong></div>
+        <div><span>Giá trị TB</span><strong>${money(avgValue)}</strong></div>
+        <div><span>Tổng deposit</span><strong>${money(totalDeposit)}</strong></div>
+      </div>
+      <div class="breakdown-grid">
+        ${renderPurchaseDimensionTable('Purchase theo Ref', groupDimension(purchaseLogs, logRefKey))}
+        ${renderPurchaseDimensionTable('Purchase theo Campaign', groupDimension(purchaseLogs, campaignKey))}
+        ${renderPurchaseDimensionTable('Purchase theo Channel', groupDimension(purchaseLogs, (log) => customValue(log, 'channel')))}
+        ${renderPurchaseDimensionTable('Purchase theo Platform', groupDimension(purchaseLogs, (log) => customValue(log, 'platform')))}
+        ${renderPurchaseDimensionTable('Purchase theo VIP', groupDimension(purchaseLogs, (log) => customValue(log, 'vip')))}
+      </div>
+    </section>
+  `;
+}
+
+function renderParameterBreakdowns(logs) {
+  if (!logs.length) return '';
+  const dimensions = [
+    ['Ref', groupDimension(logs, logRefKey)],
+    ['Campaign', groupDimension(logs, campaignKey)],
+    ['Ad set', groupDimension(logs, (log) => customValue(log, 'utm_content'))],
+    ['Ad', groupDimension(logs, (log) => customValue(log, 'utm_term'))],
+    ['Channel', groupDimension(logs, (log) => customValue(log, 'channel'))],
+    ['Platform', groupDimension(logs, (log) => customValue(log, 'platform'))],
+  ];
+
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <strong>Bóc tách theo tham số</strong>
+          <span>Dùng để đối chiếu nguồn traffic, campaign, ad set, ad, kênh thanh toán và nền tảng.</span>
+        </div>
+      </div>
+      <div class="breakdown-grid">
+        ${dimensions.map(([title, rows]) => renderDimensionTable(title, rows)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderDimensionTable(title, rows) {
+  return `
+    <div class="dimension-card">
+      <strong>${escapeHtml(title)}</strong>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead><tr><th>Giá trị</th><th>Gửi</th><th>Thành công</th><th>Lỗi</th><th>User</th><th>Purchase</th><th>Nạp mới</th><th>Purchase value</th></tr></thead>
+          <tbody>
+            ${rows.slice(0, 12).map((row) => `
+              <tr>
+                <td class="clip">${escapeHtml(row.name)}</td>
+                <td>${fmt(row.sent)}</td>
+                <td>${fmt(row.received)}</td>
+                <td>${pctText(pct(row.errors, row.sent))}</td>
+                <td>${fmt(row.users.size)}</td>
+                <td>${fmt(row.purchaseEvents)}</td>
+                <td>${fmt(row.firstUsers.size || row.firstPurchases)}</td>
+                <td>${row.purchaseEvents ? money(row.value) : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderPurchaseDimensionTable(title, rows) {
+  return `
+    <div class="dimension-card">
+      <strong>${escapeHtml(title)}</strong>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead><tr><th>Giá trị</th><th>Purchase</th><th>Thành công</th><th>User mới</th><th>Lượt mới</th><th>Lượt cũ</th><th>Value</th><th>Deposit</th></tr></thead>
+          <tbody>
+            ${rows.slice(0, 12).map((row) => `
+              <tr>
+                <td class="clip">${escapeHtml(row.name)}</td>
+                <td>${fmt(row.purchaseEvents)}</td>
+                <td>${fmt(row.received)}</td>
+                <td>${fmt(row.firstUsers.size || row.firstPurchases)}</td>
+                <td>${fmt(row.firstPurchases)}</td>
+                <td>${fmt(row.returningPurchases)}</td>
+                <td>${money(row.value)}</td>
+                <td>${money(row.deposit)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderEventDimensionTable(title, rows, includeValue = false) {
+  return `
+    <div class="table-wrap ref-table">
+      <table>
+        <thead>
+          <tr>
+            <th>${escapeHtml(title)}</th>
+            <th>Sự kiện gửi</th>
+            <th>Thành công</th>
+            <th>Chênh lệch</th>
+            <th>% lỗi</th>
+            ${includeValue ? '<th>Value</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.slice(0, 20).map((row) => `
+            <tr>
+              <td class="clip">${escapeHtml(row.name)}</td>
+              <td>${fmt(row.sent)}</td>
+              <td>${fmt(row.received)}</td>
+              <td>${fmt(row.sent - row.received)}</td>
+              <td>${pctText(pct(row.errors, row.sent))}</td>
+              ${includeValue ? `<td>${money(row.value)}</td>` : ''}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderEventSections(events) {
@@ -1184,8 +1396,8 @@ function renderEventSections(events) {
           </div>
           <div class="event-metrics">
             <div><span>Unique users</span><strong>${fmt(event.users.size)}</strong></div>
-            <div><span>Tổng value</span><strong>${money(event.value)}</strong></div>
             ${event.name === 'Purchase' ? `
+              <div><span>Tổng value</span><strong>${money(event.value)}</strong></div>
               <div><span>Nạp mới</span><strong>${fmt(event.firstPurchases)}</strong></div>
               <div><span>Nạp cũ</span><strong>${fmt(event.returningPurchases)}</strong></div>
               <div><span>Giá trị TB</span><strong>${money(event.avgValue)}</strong></div>
@@ -1210,6 +1422,7 @@ function renderEventSections(events) {
               </tbody>
             </table>
           </div>
+          ${renderEventDimensionTable('Ref', event.refs, event.name === 'Purchase')}
         </article>
       `).join('')}
     </div>
