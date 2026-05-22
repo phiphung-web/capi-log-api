@@ -25,6 +25,7 @@ const state = {
   overviewRange: null,
   reconciliation: null,
   reconciliationToday: null,
+  systemStatus: null,
   selectedProducts: new Set(),
   compareData: null,
   productDetailCache: new Map(),
@@ -116,6 +117,25 @@ function fmt(value, digits = 0) {
   return new Intl.NumberFormat('vi-VN', {
     maximumFractionDigits: digits,
   }).format(n(value));
+}
+
+function fmtBytes(value) {
+  const bytes = n(value);
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const amount = bytes / (1024 ** index);
+  return `${fmt(amount, amount >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function fmtDuration(seconds) {
+  const total = Math.max(0, Math.round(n(seconds)));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (days) return `${fmt(days)} ngày ${fmt(hours)} giờ`;
+  if (hours) return `${fmt(hours)} giờ ${fmt(minutes)} phút`;
+  return `${fmt(minutes)} phút`;
 }
 
 function money(value, currency = 'USD') {
@@ -359,6 +379,7 @@ const api = {
     group_by: 'day',
   })}`),
   adminUsers: () => request('/v1/admin/users'),
+  systemStatus: () => request('/v1/admin/system/status'),
   createUser: (payload) => request('/v1/admin/users', { method: 'POST', body: JSON.stringify(payload) }),
   updateUser: (id, payload) => request(`/v1/admin/users/${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -602,9 +623,15 @@ async function loadDashboardData() {
   if (!state.token) return;
   state.dataLoading = true;
   const today = ymd(new Date());
+  const systemStatus = isAdmin()
+    ? api.systemStatus().catch((err) => ({
+      server: {},
+      database: { status: 'error', error: err.message || 'Khong tai duoc thong so server.' },
+    }))
+    : Promise.resolve(null);
 
   try {
-    const [overviewToday, overviewRange, reconciliation, reconciliationToday, markets, products, logs] = await Promise.all([
+    const [overviewToday, overviewRange, reconciliation, reconciliationToday, markets, products, logs, adminSystemStatus] = await Promise.all([
       api.overview({ date_from: today, date_to: today }),
       api.overview({ date_from: state.dateFrom, date_to: state.dateTo }),
       api.reconciliation({ date_from: state.dateFrom, date_to: state.dateTo }),
@@ -612,6 +639,7 @@ async function loadDashboardData() {
       api.markets(),
       api.products(),
       api.logs({ limit: 250, date_from: state.dateFrom, date_to: state.dateTo }),
+      systemStatus,
     ]);
 
     state.overviewToday = overviewToday;
@@ -621,6 +649,7 @@ async function loadDashboardData() {
     state.markets = visibleMarkets(Array.isArray(markets) ? markets : []);
     state.products = visibleProducts(Array.isArray(products) ? products : []);
     state.logs = (Array.isArray(logs) ? logs : []).filter((log) => !HIDDEN_MARKETS.has(String(log.market_key || '').toLowerCase()));
+    state.systemStatus = adminSystemStatus;
     state.error = '';
   } catch (err) {
     state.error = err.message || 'Không tải được dữ liệu dashboard.';
@@ -829,6 +858,7 @@ function renderHome() {
   const latest = state.logs[0]?.created_at;
   const total = n(range.total_events || range.sent_events);
   const errorRate = pct(range.error_events || range.error_logs, total);
+  const adminSystemStatus = isAdmin() ? renderAdminSystemStatus() : '';
 
   return `
     <section class="home-welcome panel">
@@ -847,6 +877,47 @@ function renderHome() {
       ${kpiCard('Thị trường hoạt động', activeMarkets, `${fmt(state.markets.length)} thị trường được phép xem`)}
       ${kpiCard('Sản phẩm hoạt động', activeProducts, `${fmt(state.products.length)} sản phẩm được phép xem`)}
     </div>
+    ${adminSystemStatus}
+  `;
+}
+
+function renderAdminSystemStatus() {
+  const status = state.systemStatus || {};
+  const server = status.server || {};
+  const database = status.database || {};
+  const memoryUsed = n(server.total_memory_bytes) - n(server.free_memory_bytes);
+  const loadAverage = Array.isArray(server.load_average) && server.load_average.length
+    ? server.load_average.map((value) => fmt(value, 2)).join(' / ')
+    : '-';
+  const dbVersion = database.server_version ? `PostgreSQL ${database.server_version}` : '-';
+  const dbConnections = database.max_connections
+    ? `${fmt(database.active_connections)}/${fmt(database.total_connections)}/${fmt(database.max_connections)}`
+    : `${fmt(database.active_connections)}/${fmt(database.total_connections)}`;
+  const pool = database.pool || {};
+  const poolText = `${fmt(pool.idle)}/${fmt(pool.total)}/${fmt(pool.waiting)}`;
+  const dbDetail = database.status === 'error'
+    ? text(database.error, 'Database chua san sang')
+    : `${text(database.name)} @ ${text(database.host)}:${text(database.port)}`;
+
+  return `
+    <section class="panel admin-system-panel">
+      <div class="panel-head">
+        <strong>Thông số server/database</strong>
+        <span>Chỉ admin nhìn thấy</span>
+      </div>
+      <div class="home-status-grid system-status-grid">
+        ${kpiCard('Server uptime', fmtDuration(server.uptime_seconds), `Start ${displayDateTime(server.started_at)}`)}
+        ${kpiCard('Node runtime', text(server.node_version), `${text(server.node_env)} · PID ${text(server.pid)}`)}
+        ${kpiCard('RAM server', fmtBytes(memoryUsed), `${fmtBytes(server.free_memory_bytes)} free / ${fmtBytes(server.total_memory_bytes)} total`)}
+        ${kpiCard('CPU load', loadAverage, `${fmt(server.cpu_count)} CPU · ${text(server.platform)} ${text(server.release)}`)}
+        ${kpiCard('Database', database.status === 'ok' ? 'Online' : 'Lỗi', dbDetail, database.status === 'ok' ? 'healthy' : 'error')}
+        ${kpiCard('DB version', dbVersion, `User ${text(database.user)}`)}
+        ${kpiCard('DB size', fmtBytes(database.size_bytes), `Latency ${fmt(database.response_ms, 1)} ms`)}
+        ${kpiCard('DB connections', dbConnections, 'Active / total / max')}
+        ${kpiCard('DB pool', poolText, 'Idle / total / waiting')}
+        ${kpiCard('DB deadlocks', fmt(database.stats?.deadlocks), `Rollback ${fmt(database.stats?.rollbacks)}`)}
+      </div>
+    </section>
   `;
 }
 
@@ -2827,6 +2898,7 @@ function logout() {
   state.products = [];
   state.logs = [];
   state.reconciliation = null;
+  state.systemStatus = null;
   state.productDetailCache.clear();
   go('/dashboard/login');
 }

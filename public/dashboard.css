@@ -432,6 +432,10 @@ textarea:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.system-status-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .home-welcome {
   display: flex;
   justify-content: space-between;

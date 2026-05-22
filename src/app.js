@@ -12,6 +12,7 @@ const authController = require('./controllers/auth.controller');
 const capiLogsController = require('./controllers/capiLogs.controller');
 const capiLogsRoutes = require('./routes/capiLogs.routes');
 const maintenanceController = require('./controllers/maintenance.controller');
+const systemController = require('./controllers/system.controller');
 const usersController = require('./controllers/users.controller');
 
 const app = express();
@@ -69,6 +70,7 @@ app.get('/v1/admin/users', auth, auth.requireAdmin, usersController.listUsers);
 app.post('/v1/admin/users', auth, auth.requireAdmin, usersController.createUser);
 app.patch('/v1/admin/users/:id', auth, auth.requireAdmin, usersController.updateUser);
 app.put('/v1/admin/users/:id/access', auth, auth.requireAdmin, usersController.updateUserAccess);
+app.get('/v1/admin/system/status', auth, auth.requireAdmin, systemController.status);
 app.get('/v1/analytics/overview', auth, analyticsController.overview);
 app.get('/v1/analytics/reconciliation', auth, analyticsController.reconciliation);
 app.get('/v1/analytics/campaign-performance', auth, analyticsController.getCampaignPerformance);
