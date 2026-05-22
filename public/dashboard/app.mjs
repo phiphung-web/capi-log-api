@@ -1275,13 +1275,13 @@ function buildEventDetails(logs) {
       campaigns: groupLogs(eventLogs, campaignKey),
       refs: groupLogs(eventLogs, logRefKey),
       dimensions: [
-        ['Campaign', groupLogs(eventLogs, campaignKey)],
-        ['Ref', groupLogs(eventLogs, logRefKey)],
-        ['Ad set', groupLogs(eventLogs, (log) => customValue(log, 'utm_content'))],
-        ['Ad', groupLogs(eventLogs, (log) => customValue(log, 'utm_term'))],
-        ['Channel', groupLogs(eventLogs, (log) => customValue(log, 'channel'))],
-        ['Platform', groupLogs(eventLogs, (log) => customValue(log, 'platform'))],
-        ['VIP', groupLogs(eventLogs, (log) => customValue(log, 'vip'))],
+        ['Campaign', groupDimension(eventLogs, campaignKey)],
+        ['Ref', groupDimension(eventLogs, logRefKey)],
+        ['Ad set', groupDimension(eventLogs, (log) => customValue(log, 'utm_content'))],
+        ['Ad', groupDimension(eventLogs, (log) => customValue(log, 'utm_term'))],
+        ['Channel', groupDimension(eventLogs, (log) => customValue(log, 'channel'))],
+        ['Platform', groupDimension(eventLogs, (log) => customValue(log, 'platform'))],
+        ['VIP', groupDimension(eventLogs, (log) => customValue(log, 'vip'))],
       ],
       firstPurchases: firstPurchases.length,
       returningPurchases: returning.length,
@@ -1407,20 +1407,97 @@ function renderEventDimensionCard(title, rows, includeValue = false) {
   `;
 }
 
+const DONUT_COLORS = ['#22d3ee', '#14b8a6', '#f59e0b', '#fb7185', '#a78bfa', '#60a5fa', '#34d399'];
+
+function donutStyle(rows, total) {
+  const topRows = rows.filter((row) => row.sent > 0).slice(0, 6);
+  const used = topRows.reduce((sum, row) => sum + row.sent, 0);
+  const chartRows = used < total ? [...topRows, { name: 'Khác', sent: total - used }] : topRows;
+  let cursor = 0;
+  const segments = chartRows.map((row, index) => {
+    const start = cursor;
+    const end = cursor + pct(row.sent, total);
+    cursor = end;
+    return `${DONUT_COLORS[index % DONUT_COLORS.length]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+  });
+  return segments.length ? segments.join(', ') : 'var(--surface-2) 0% 100%';
+}
+
+function renderDonut(title, rows, total) {
+  const topRows = rows.filter((row) => row.sent > 0).slice(0, 6);
+  const used = topRows.reduce((sum, row) => sum + row.sent, 0);
+  const legendRows = used < total ? [...topRows, { name: 'Khác', sent: total - used }] : topRows;
+  return `
+    <div class="donut-block">
+      <div class="donut-chart" style="background: conic-gradient(${donutStyle(rows, total)});">
+        <span>${pctText(pct(topRows[0]?.sent || 0, total))}</span>
+      </div>
+      <div class="donut-legend">
+        <strong>${escapeHtml(title)}</strong>
+        ${legendRows.map((row, index) => `
+          <span>
+            <i style="background:${DONUT_COLORS[index % DONUT_COLORS.length]}"></i>
+            <b class="clip">${escapeHtml(row.name)}</b>
+            <em>${pctText(pct(row.sent, total))}</em>
+          </span>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderEventParameterReport(title, rows, total, includePurchaseColumns = false) {
+  return `
+    <section class="event-param-card">
+      ${renderDonut(title, rows, total)}
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(title)}</th>
+              <th>Gửi</th>
+              <th>% tổng</th>
+              <th>Thành công</th>
+              <th>% thành công</th>
+              <th>% lỗi</th>
+              <th>User</th>
+              ${includePurchaseColumns ? '<th>Nạp mới</th><th>Value</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.slice(0, 15).map((row) => `
+              <tr>
+                <td class="clip">${escapeHtml(row.name)}</td>
+                <td>${fmt(row.sent)}</td>
+                <td>${pctText(pct(row.sent, total))}</td>
+                <td>${fmt(row.received)}</td>
+                <td>${pctText(pct(row.received, row.sent))}</td>
+                <td>${pctText(pct(row.errors, row.sent))}</td>
+                <td>${fmt(row.users.size)}</td>
+                ${includePurchaseColumns ? `<td>${fmt(row.firstUsers.size || row.firstPurchases)}</td><td>${row.purchaseEvents ? moneyMapText(row.valueByCurrency) : '-'}</td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
 function renderEventSections(events) {
   if (!events.length) return emptyState('Không có event trong khoảng lọc');
 
   return `
     <div class="event-stack">
-      ${events.map((event) => `
-        <article class="event-card">
-          <div class="event-head">
+      ${events.map((event, index) => `
+        <details class="event-card" ${index === 0 ? 'open' : ''}>
+          <summary class="event-head">
             <div>
               <strong>${escapeHtml(event.name)}</strong>
               <span>${fmt(event.sent)} gửi · ${fmt(event.received)} Meta nhận thành công · lỗi ${pctText(pct(event.errors, event.sent))}</span>
             </div>
             ${sparkline(event.logs, event.name)}
-          </div>
+          </summary>
           <div class="event-metrics">
             <div><span>Unique users</span><strong>${fmt(event.users.size)}</strong></div>
             ${event.name === 'Purchase' ? `
@@ -1430,7 +1507,13 @@ function renderEventSections(events) {
               <div><span>Giá trị TB</span><strong>${averageMoneyText(event.valueByCurrency, event.purchaseCountByCurrency)}</strong></div>
             ` : ''}
           </div>
-        </article>
+          <div class="event-param-grid">
+            ${event.dimensions
+              .filter(([, rows]) => rows.some((row) => row.sent > 0))
+              .map(([title, rows]) => renderEventParameterReport(title, rows, event.sent, event.name === 'Purchase'))
+              .join('')}
+          </div>
+        </details>
       `).join('')}
     </div>
   `;
