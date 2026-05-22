@@ -436,6 +436,111 @@ textarea:focus {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.admin-system-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.system-overview {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2fr);
+  gap: 14px;
+}
+
+.system-summary {
+  min-height: 150px;
+  padding: 18px;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.system-summary span,
+.system-summary small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.system-summary strong {
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.system-summary.status-healthy {
+  border-color: color-mix(in srgb, var(--good) 46%, var(--border));
+}
+
+.system-summary.status-warning {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+}
+
+.system-summary.status-error {
+  border-color: color-mix(in srgb, var(--bad) 52%, var(--border));
+}
+
+.system-issues {
+  display: grid;
+  gap: 10px;
+}
+
+.system-issue {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.system-issue strong,
+.system-issue span {
+  display: block;
+}
+
+.system-issue strong {
+  font-size: 13px;
+}
+
+.system-issue span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.system-issue.healthy {
+  border-color: color-mix(in srgb, var(--good) 38%, var(--border));
+}
+
+.system-issue.warning {
+  border-color: color-mix(in srgb, var(--warn) 48%, var(--border));
+}
+
+.system-issue.error {
+  border-color: color-mix(in srgb, var(--bad) 50%, var(--border));
+}
+
+.system-section {
+  display: grid;
+  gap: 10px;
+}
+
+.system-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 14px;
+}
+
+.system-section-head strong {
+  font-size: 15px;
+}
+
+.system-section-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .home-welcome {
   display: flex;
   justify-content: space-between;
@@ -1181,6 +1286,19 @@ canvas {
   background: var(--surface);
 }
 
+.purchase-transaction-chart {
+  max-width: 520px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.purchase-transaction-chart .donut-block {
+  margin-bottom: 0;
+}
+
 .donut-block {
   display: grid;
   grid-template-columns: 126px minmax(0, 1fr);
@@ -1821,6 +1939,7 @@ pre {
   }
 
   .split-layout,
+  .system-overview,
   .access-columns,
   .login-page {
     grid-template-columns: 1fr;

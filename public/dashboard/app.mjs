@@ -138,6 +138,20 @@ function fmtDuration(seconds) {
   return `${fmt(minutes)} phút`;
 }
 
+function fmtAge(seconds) {
+  if (seconds === null || seconds === undefined || seconds === '') return '-';
+  return `${fmtDuration(seconds)} trước`;
+}
+
+function statusText(status) {
+  return {
+    healthy: 'Ổn định',
+    warning: 'Cần theo dõi',
+    error: 'Cần xử lý',
+    ok: 'Online',
+  }[String(status || '').toLowerCase()] || text(status, '-');
+}
+
 function money(value, currency = 'USD') {
   const code = String(currency || 'USD').trim().toUpperCase();
   const raw = value === null || value === undefined ? '' : String(value).replace(/,/g, '').trim();
@@ -883,9 +897,14 @@ function renderHome() {
 
 function renderAdminSystemStatus() {
   const status = state.systemStatus || {};
+  const summary = status.summary || {};
   const server = status.server || {};
   const database = status.database || {};
-  const memoryUsed = n(server.total_memory_bytes) - n(server.free_memory_bytes);
+  const activity = status.activity || {};
+  const logs = activity.logs || {};
+  const catalog = activity.catalog || {};
+  const users = activity.users || {};
+  const memoryUsed = server.used_memory_bytes ?? (n(server.total_memory_bytes) - n(server.free_memory_bytes));
   const loadAverage = Array.isArray(server.load_average) && server.load_average.length
     ? server.load_average.map((value) => fmt(value, 2)).join(' / ')
     : '-';
@@ -894,28 +913,91 @@ function renderAdminSystemStatus() {
     ? `${fmt(database.active_connections)}/${fmt(database.total_connections)}/${fmt(database.max_connections)}`
     : `${fmt(database.active_connections)}/${fmt(database.total_connections)}`;
   const pool = database.pool || {};
-  const poolText = `${fmt(pool.idle)}/${fmt(pool.total)}/${fmt(pool.waiting)}`;
+  const poolText = `${fmt(pool.used)}/${fmt(pool.total)}/${fmt(pool.max)}`;
   const dbDetail = database.status === 'error'
-    ? text(database.error, 'Database chua san sang')
+    ? text(database.error, 'Database chưa sẵn sàng')
     : `${text(database.name)} @ ${text(database.host)}:${text(database.port)}`;
+  const issues = Array.isArray(summary.issues) ? summary.issues : [];
 
   return `
     <section class="panel admin-system-panel">
       <div class="panel-head">
-        <strong>Thông số server/database</strong>
-        <span>Chỉ admin nhìn thấy</span>
+        <div>
+          <strong>Tình trạng server & hệ thống</strong>
+          <span>Chỉ admin nhìn thấy · cập nhật ${displayDateTime(status.checked_at)}</span>
+        </div>
       </div>
-      <div class="home-status-grid system-status-grid">
-        ${kpiCard('Server uptime', fmtDuration(server.uptime_seconds), `Start ${displayDateTime(server.started_at)}`)}
-        ${kpiCard('Node runtime', text(server.node_version), `${text(server.node_env)} · PID ${text(server.pid)}`)}
-        ${kpiCard('RAM server', fmtBytes(memoryUsed), `${fmtBytes(server.free_memory_bytes)} free / ${fmtBytes(server.total_memory_bytes)} total`)}
-        ${kpiCard('CPU load', loadAverage, `${fmt(server.cpu_count)} CPU · ${text(server.platform)} ${text(server.release)}`)}
-        ${kpiCard('Database', database.status === 'ok' ? 'Online' : 'Lỗi', dbDetail, database.status === 'ok' ? 'healthy' : 'error')}
-        ${kpiCard('DB version', dbVersion, `User ${text(database.user)}`)}
-        ${kpiCard('DB size', fmtBytes(database.size_bytes), `Latency ${fmt(database.response_ms, 1)} ms`)}
-        ${kpiCard('DB connections', dbConnections, 'Active / total / max')}
-        ${kpiCard('DB pool', poolText, 'Idle / total / waiting')}
-        ${kpiCard('DB deadlocks', fmt(database.stats?.deadlocks), `Rollback ${fmt(database.stats?.rollbacks)}`)}
+
+      <div class="system-overview">
+        <article class="system-summary status-${escapeHtml(summary.status || 'warning')}">
+          <span>Tổng quan</span>
+          <strong>${escapeHtml(statusText(summary.status))}</strong>
+          <small>Health score ${fmt(summary.score ?? 0)}/100</small>
+        </article>
+        <div class="system-issues">
+          ${issues.length ? issues.map((item) => `
+            <div class="system-issue ${escapeHtml(item.level)}">
+              <strong>${escapeHtml(item.title)}</strong>
+              <span>${escapeHtml(item.detail)}</span>
+            </div>
+          `).join('') : '<div class="system-issue healthy"><strong>Không có cảnh báo</strong><span>Server, database và luồng log đang trong ngưỡng ổn định.</span></div>'}
+        </div>
+      </div>
+
+      <div class="system-section">
+        <div class="system-section-head">
+          <strong>Server runtime</strong>
+          <span>${escapeHtml(text(server.hostname))} · ${escapeHtml(text(server.platform))} ${escapeHtml(text(server.release))}</span>
+        </div>
+        <div class="home-status-grid system-status-grid">
+          ${kpiCard('Uptime', fmtDuration(server.uptime_seconds), `Start ${displayDateTime(server.started_at)}`)}
+          ${kpiCard('CPU load', loadAverage, `${fmt(server.cpu_count)} CPU · 1m/CPU ${fmt(server.load_1m_per_cpu, 2)}`)}
+          ${kpiCard('RAM server', `${fmt(server.memory_used_percent, 1)}%`, `${fmtBytes(memoryUsed)} used / ${fmtBytes(server.total_memory_bytes)} total`, server.memory_used_percent >= 90 ? 'error' : server.memory_used_percent >= 80 ? 'warning' : '')}
+          ${kpiCard('Node heap', `${fmt(server.process_heap_used_percent, 1)}%`, `${fmtBytes(server.process_memory_bytes?.heapUsed)} used / ${fmtBytes(server.process_memory_bytes?.heapTotal)} heap`)}
+          ${kpiCard('Node runtime', text(server.node_version), `${text(server.node_env)} · PID ${text(server.pid)}`)}
+        </div>
+      </div>
+
+      <div class="system-section">
+        <div class="system-section-head">
+          <strong>Database</strong>
+          <span>${escapeHtml(dbDetail)}</span>
+        </div>
+        <div class="home-status-grid system-status-grid">
+          ${kpiCard('DB status', database.status === 'ok' ? 'Online' : 'Lỗi', `Latency ${fmt(database.response_ms, 1)} ms`, database.status === 'ok' ? 'healthy' : 'error')}
+          ${kpiCard('Connections', dbConnections, `${fmt(database.connection_percent, 1)}% max_connections`)}
+          ${kpiCard('DB pool', poolText, `Used / total / max · waiting ${fmt(pool.waiting)}`, pool.waiting > 0 ? 'warning' : '')}
+          ${kpiCard('DB size', fmtBytes(database.size_bytes), `Log table ${fmtBytes(database.log_table_size_bytes)} · ~${fmt(database.estimated_log_rows)} rows`)}
+          ${kpiCard('Cache hit', `${fmt(database.stats?.cache_hit_percent, 2)}%`, `Blocks hit/read ${fmt(database.stats?.blocks_hit)} / ${fmt(database.stats?.blocks_read)}`)}
+          ${kpiCard('Transactions', fmt(database.stats?.total_transactions), `Rollback ${fmt(database.stats?.rollback_percent, 2)}% · deadlocks ${fmt(database.stats?.deadlocks)}`)}
+          ${kpiCard('DB version', dbVersion, `User ${text(database.user)}`)}
+        </div>
+      </div>
+
+      <div class="system-section">
+        <div class="system-section-head">
+          <strong>Log/API activity</strong>
+          <span>Nhìn nhanh luồng nhận log và tỷ lệ lỗi gần đây</span>
+        </div>
+        <div class="home-status-grid system-status-grid">
+          ${kpiCard('Log 5 phút', fmt(logs.events_5m), 'Sự kiện mới nhận gần nhất')}
+          ${kpiCard('Log 1 giờ', fmt(logs.events_1h), `${fmt(logs.received_24h)} received trong 24h`)}
+          ${kpiCard('Log 24 giờ', fmt(logs.events_24h), `${fmt(logs.errors_24h)} lỗi · ${fmt(logs.unknown_24h)} unknown`)}
+          ${kpiCard('Tỷ lệ lỗi 24h', `${fmt(logs.error_rate_24h, 1)}%`, 'Theo meta_status = error', logs.error_rate_24h >= 15 ? 'error' : logs.error_rate_24h >= 5 ? 'warning' : '')}
+          ${kpiCard('Log mới nhất', logs.latest_log_at ? displayDateTime(logs.latest_log_at) : '-', logs.latest_age_seconds === null ? 'Chưa ghi nhận log' : fmtAge(logs.latest_age_seconds))}
+        </div>
+      </div>
+
+      <div class="system-section">
+        <div class="system-section-head">
+          <strong>Danh mục & người dùng</strong>
+          <span>Tổng quan dữ liệu vận hành đang active</span>
+        </div>
+        <div class="home-status-grid system-status-grid">
+          ${kpiCard('Thị trường', fmt(catalog.active_markets), `${fmt(catalog.total_markets)} tổng số`)}
+          ${kpiCard('Sản phẩm', fmt(catalog.active_products), `${fmt(catalog.total_products)} tổng số`)}
+          ${kpiCard('Users active', fmt(users.active_users), `${fmt(users.total_users)} tổng số`)}
+        </div>
       </div>
     </section>
   `;
@@ -1357,6 +1439,24 @@ function isPurchase(log) {
   return String(log.event_name || '').toLowerCase() === 'purchase';
 }
 
+function eventDimensions(eventLogs, eventIsPurchase) {
+  const dimensions = [
+    ['Campaign', groupDimension(eventLogs, campaignKey)],
+    ['Ref', groupDimension(eventLogs, logRefKey)],
+  ];
+
+  if (eventIsPurchase) {
+    dimensions.push(['Channel', groupDimension(eventLogs, (log) => customValue(log, 'channel'))]);
+  }
+
+  dimensions.push(
+    ['Platform', groupDimension(eventLogs, (log) => customValue(log, 'platform'))],
+    ['VIP', groupDimension(eventLogs, (log) => customValue(log, 'vip'))]
+  );
+
+  return dimensions;
+}
+
 function groupLogs(logs, keyFn) {
   const map = new Map();
   logs.forEach((log) => {
@@ -1454,23 +1554,17 @@ function purchaseMoney(log) {
 function buildEventDetails(logs) {
   return groupLogs(logs, (log) => log.event_name || '-').map((event) => {
     const eventLogs = logs.filter((log) => (log.event_name || '-') === event.name);
-    const purchaseLogs = event.name === 'Purchase' ? eventLogs : [];
+    const eventIsPurchase = eventLogs.some(isPurchase);
+    const purchaseLogs = eventIsPurchase ? eventLogs.filter(isPurchase) : [];
     const firstPurchases = purchaseLogs.filter(isFirstPurchase);
     const returning = purchaseLogs.filter((log) => !isFirstPurchase(log));
     return {
       ...event,
+      isPurchase: eventIsPurchase,
       logs: eventLogs,
       campaigns: groupLogs(eventLogs, campaignKey),
       refs: groupLogs(eventLogs, logRefKey),
-      dimensions: [
-        ['Campaign', groupDimension(eventLogs, campaignKey)],
-        ['Ref', groupDimension(eventLogs, logRefKey)],
-        ['Ad set', groupDimension(eventLogs, (log) => customValue(log, 'utm_content'))],
-        ['Ad', groupDimension(eventLogs, (log) => customValue(log, 'utm_term'))],
-        ['Channel', groupDimension(eventLogs, (log) => customValue(log, 'channel'))],
-        ['Platform', groupDimension(eventLogs, (log) => customValue(log, 'platform'))],
-        ['VIP', groupDimension(eventLogs, (log) => customValue(log, 'vip'))],
-      ],
+      dimensions: eventDimensions(eventLogs, eventIsPurchase),
       firstPurchases: firstPurchases.length,
       returningPurchases: returning.length,
     };
@@ -1672,6 +1766,25 @@ function renderEventParameterReport(title, rows, total, includePurchaseColumns =
   `;
 }
 
+function purchaseTransactionRows(event) {
+  return [
+    { name: 'Nạp mới', sent: n(event.firstPurchases) },
+    { name: 'Nạp cũ', sent: n(event.returningPurchases) },
+  ].filter((row) => row.sent > 0);
+}
+
+function renderPurchaseTransactionPie(event) {
+  const rows = purchaseTransactionRows(event);
+  if (!rows.length) return '';
+  const total = rows.reduce((sum, row) => sum + row.sent, 0);
+
+  return `
+    <div class="purchase-transaction-chart">
+      ${renderDonut('Số lượng giao dịch', rows, total)}
+    </div>
+  `;
+}
+
 function renderEventSections(events) {
   if (!events.length) return emptyState('Không có event trong khoảng lọc');
 
@@ -1689,17 +1802,18 @@ function renderEventSections(events) {
           </summary>
           <div class="event-metrics">
             <div><span>Unique users</span><strong>${fmt(event.users.size)}</strong></div>
-            ${event.name === 'Purchase' ? `
+            ${event.isPurchase ? `
               <div><span>Tổng value</span><strong>${moneyMapText(event.valueByCurrency)}</strong></div>
               <div><span>Nạp mới</span><strong>${fmt(event.firstPurchases)}</strong></div>
               <div><span>Nạp cũ</span><strong>${fmt(event.returningPurchases)}</strong></div>
               <div><span>Giá trị TB</span><strong>${averageMoneyText(event.valueByCurrency, event.purchaseCountByCurrency)}</strong></div>
             ` : ''}
           </div>
+          ${event.isPurchase ? renderPurchaseTransactionPie(event) : ''}
           <div class="event-param-grid">
             ${event.dimensions
               .filter(([, rows]) => rows.some((row) => row.sent > 0))
-              .map(([title, rows]) => renderEventParameterReport(title, rows, event.sent, event.name === 'Purchase'))
+              .map(([title, rows]) => renderEventParameterReport(title, rows, event.sent, event.isPurchase))
               .join('')}
           </div>
         </details>
