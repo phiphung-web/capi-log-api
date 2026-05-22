@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+process.env.TZ = process.env.TZ || 'Asia/Ho_Chi_Minh';
 const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');

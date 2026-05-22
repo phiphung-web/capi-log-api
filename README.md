@@ -25,6 +25,7 @@ API_TOKEN=CHANGE_THIS_SECRET_TOKEN
 APP_SECRET=CHANGE_THIS_INTERNAL_APP_SECRET
 SESSION_TTL_SECONDS=28800
 REMEMBER_SESSION_TTL_SECONDS=2592000
+TZ=Asia/Ho_Chi_Minh
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -89,6 +90,8 @@ http://localhost:4005/
 The root domain redirects to `/dashboard/login`. The dashboard app then checks the stored session token: unauthenticated users stay on login, authenticated users are sent into the dashboard.
 
 Login sessions expire automatically. By default, normal sessions last 8 hours (`SESSION_TTL_SECONDS=28800`) and "Remember login" sessions last 30 days (`REMEMBER_SESSION_TTL_SECONDS=2592000`).
+
+Server timezone mặc định được đặt là `Asia/Ho_Chi_Minh` (UTC+7) qua biến môi trường `TZ`.
 
 ## 6. Test with curl
 
