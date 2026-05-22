@@ -1103,8 +1103,8 @@ function renderProductDetail(marketKey, productKey) {
   const activeRange = currentRangeKey();
   const detailTabs = [
     ['overview', 'Tổng quan'],
-    ['events', 'Loại sự kiện hoạt động'],
-    ['campaigns', 'Camp hoạt động'],
+    ['events', 'Sự kiện hoạt động'],
+    ['campaigns', 'Campaign hoạt động'],
   ];
   if (!detailTabs.some(([key]) => key === state.detailTab)) state.detailTab = 'overview';
 
@@ -1200,7 +1200,7 @@ function renderProductEventsTab(events) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>Loại sự kiện hoạt động</strong>
+          <strong>Các sự kiện hoạt động</strong>
           <span>Mỗi event hiển thị tổng gửi/thành công/lỗi/user. Purchase mới có value.</span>
         </div>
       </div>
@@ -1699,7 +1699,7 @@ function renderCampaignActivityTab(logs) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>Camp hoạt động</strong>
+          <strong>Campaign hoạt động</strong>
           <span>Ghép theo cấu trúc Ads Manager: Campaign → Ad set → Ad từ utm_campaign, utm_content, utm_term.</span>
         </div>
       </div>
