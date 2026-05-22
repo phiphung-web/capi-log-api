@@ -68,6 +68,16 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[data-log-id]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -543,6 +553,7 @@ textarea:focus {
   padding: 16px;
   color: var(--text);
   text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .product-card {
@@ -554,6 +565,14 @@ textarea:focus {
   display: grid;
   align-content: space-between;
   justify-items: start;
+}
+
+.card-action-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .country-flag {
@@ -707,6 +726,18 @@ button.data-card {
   background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
+.data-card:hover {
+  transform: translateY(-2px);
+}
+
+.data-card:hover .open-hint,
+.card-link:hover .open-hint,
+.rank-row:hover .open-hint,
+.clickable-row:hover .row-action {
+  color: var(--accent);
+  opacity: 1;
+}
+
 .card-top {
   display: flex;
   justify-content: space-between;
@@ -743,6 +774,23 @@ button.data-card {
   background: transparent;
   color: inherit;
   text-align: left;
+}
+
+.open-hint,
+.row-action,
+.expand-hint,
+.tree-toggle small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 0.72;
+  white-space: nowrap;
+  transition: color 0.16s ease, opacity 0.16s ease;
+}
+
+.card-link .open-hint {
+  display: inline-flex;
+  margin-top: 8px;
 }
 
 dl {
@@ -873,8 +921,18 @@ tbody tr:last-child td {
   font-weight: 800;
 }
 
+.table-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .clickable-row {
   cursor: pointer;
+}
+
+.clickable-row .row-action {
+  text-align: right;
 }
 
 .clip {
@@ -1016,15 +1074,31 @@ canvas {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-soft);
+  transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .event-card summary {
   cursor: pointer;
   list-style: none;
+  border-radius: calc(var(--radius) - 4px);
 }
 
 .event-card summary::-webkit-details-marker {
   display: none;
+}
+
+.event-card:hover,
+.event-card[open] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+
+.event-card[open] .expand-hint {
+  color: var(--accent);
+}
+
+.event-card[open] .expand-hint::before {
+  content: "Đang mở · ";
+  color: var(--muted);
 }
 
 .event-head {
@@ -1032,6 +1106,11 @@ canvas {
   justify-content: space-between;
   gap: 14px;
   align-items: center;
+}
+
+.event-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .event-head strong {
@@ -1153,6 +1232,7 @@ canvas {
 .sparkline {
   width: 180px;
   max-width: 100%;
+  flex: 0 0 auto;
   color: var(--accent);
 }
 
@@ -1201,6 +1281,20 @@ canvas {
   background: transparent;
   color: inherit;
   text-align: left;
+  cursor: pointer;
+}
+
+.tree-toggle:hover {
+  color: var(--accent);
+}
+
+.tree-toggle:hover small {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.tree-row:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
 }
 
 .campaign-row {
@@ -1235,6 +1329,14 @@ canvas {
   width: 18px;
   flex: 0 0 auto;
   color: var(--accent);
+}
+
+.tree-caret {
+  transition: transform 0.16s ease;
+}
+
+.tree-toggle[aria-expanded="false"] .tree-caret {
+  transform: rotate(-90deg);
 }
 
 .tree-leaf::before {
@@ -1282,12 +1384,18 @@ canvas {
   background: var(--surface);
   color: var(--muted);
   font-weight: 800;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .tabs button.active {
   color: var(--text);
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.tabs button:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
 .actions {

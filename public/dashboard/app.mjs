@@ -853,7 +853,10 @@ function renderMarkets() {
               <strong>${escapeHtml(meta.name)}</strong>
               <span>${escapeHtml(market.market_key.toUpperCase())}${market.region ? ` · ${escapeHtml(market.region)}` : ''}</span>
             </div>
-            <em class="badge ${receiving ? 'good' : 'warn'}">${receiving ? 'Đang nhận log' : 'Ngừng nhận log'}</em>
+            <div class="card-action-row">
+              <em class="badge ${receiving ? 'good' : 'warn'}">${receiving ? 'Đang nhận log' : 'Ngừng nhận log'}</em>
+              <span class="open-hint">Mở →</span>
+            </div>
           </button>
         `;
       }).join('')}
@@ -934,6 +937,7 @@ function renderProductCard(product) {
       <button class="card-link" data-go="${productPath(product)}" type="button">
         <strong>${escapeHtml(productName(product))}</strong>
         <span>${escapeHtml(marketLabel)} · ${escapeHtml(product.product_key)}</span>
+        <small class="open-hint">Xem chi tiết →</small>
       </button>
       <dl>
         <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
@@ -1182,7 +1186,7 @@ function renderProductOverviewTab(summary, chartType, marketKey, productKey, rec
       <div class="panel-head">
         <div>
           <strong>Log gần nhất</strong>
-          <span>Hiển thị nhanh 10 log gần nhất, danh sách đầy đủ giữ tối đa ${fmt(RECENT_LOG_LIMIT)} log.</span>
+          <span>Click vào từng dòng để xem payload/response. Danh sách đầy đủ giữ tối đa ${fmt(RECENT_LOG_LIMIT)} log.</span>
         </div>
         <button class="secondary" id="view-all-logs" type="button">Xem ${fmt(RECENT_LOG_LIMIT)} log gần nhất</button>
       </div>
@@ -1588,6 +1592,7 @@ function renderEventSections(events) {
               <strong>${escapeHtml(event.name)}</strong>
               <span>${fmt(event.sent)} gửi · ${fmt(event.received)} Meta nhận thành công · lỗi ${pctText(pct(event.errors, event.sent))}</span>
             </div>
+            <em class="expand-hint">Mở chi tiết</em>
             ${sparkline(event.logs, event.name)}
           </summary>
           <div class="event-metrics">
@@ -1721,7 +1726,7 @@ function renderCampaignActivityTab(logs) {
               <tr class="tree-row campaign-row" data-tree-row="campaign" data-campaign-id="${campaignId}">
                 <td>
                   <button class="tree-toggle" data-toggle-campaign="${campaignId}" type="button" aria-expanded="true">
-                    <span class="tree-caret">▾</span><span class="tree-level">Campaign</span><strong class="clip">${escapeHtml(campaign.name)}</strong>
+                    <span class="tree-caret">▾</span><span class="tree-level">Campaign</span><strong class="clip">${escapeHtml(campaign.name)}</strong><small>Mở/đóng</small>
                   </button>
                 </td>
                 ${campaignMetricCells(campaign)}
@@ -1732,7 +1737,7 @@ function renderCampaignActivityTab(logs) {
                   <tr class="tree-row adset-row" data-tree-row="adset" data-campaign-id="${campaignId}" data-adset-id="${adSetId}">
                     <td>
                       <button class="tree-toggle" data-toggle-adset="${adSetId}" type="button" aria-expanded="true">
-                        <span class="tree-indent"></span><span class="tree-caret">▾</span><span class="tree-level">Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong>
+                        <span class="tree-indent"></span><span class="tree-caret">▾</span><span class="tree-level">Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong><small>Mở/đóng</small>
                       </button>
                     </td>
                     ${campaignMetricCells(adSet)}
@@ -1830,11 +1835,12 @@ function renderLogsTable(logs) {
             <th>Value</th>
             <th>Meta</th>
             <th>Trace</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           ${logs.map((log) => `
-            <tr class="clickable-row" data-log-id="${escapeHtml(log.id)}">
+            <tr class="clickable-row" data-log-id="${escapeHtml(log.id)}" tabindex="0" role="button" aria-label="Xem chi tiết log ${escapeHtml(log.id)}">
               <td>${displayDateTime(log.created_at)}</td>
               <td>${escapeHtml(text(log.event_name))}</td>
               <td>${escapeHtml(log.market_key)}:${escapeHtml(log.product_key)}</td>
@@ -1842,6 +1848,7 @@ function renderLogsTable(logs) {
               <td>${purchaseMoney(log)}</td>
               <td><em class="badge ${classForStatus(log.meta_status)}">${escapeHtml(statusLabel(log.meta_status))}</em></td>
               <td class="clip">${escapeHtml(text(log.fbtrace_id))}</td>
+              <td class="row-action">Chi tiết →</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2189,7 +2196,7 @@ function bindScreenEvents(route) {
   document.getElementById('compare-btn')?.addEventListener('click', runProductsCompare);
 
   document.querySelectorAll('[data-log-id]').forEach((row) => {
-    row.addEventListener('click', () => {
+    const openLog = () => {
       const allLogs = [
         ...state.logs,
         ...Array.from(state.productDetailCache.values()).flatMap((item) => [
@@ -2198,6 +2205,13 @@ function bindScreenEvents(route) {
         ]),
       ];
       showLogModal(allLogs.find((log) => String(log.id) === String(row.dataset.logId)));
+    };
+    row.addEventListener('click', openLog);
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openLog();
+      }
     });
   });
 
@@ -2705,9 +2719,16 @@ function showAllLogsModal(logs, page = 0, title = 'Log gần nhất') {
   document.getElementById('logs-prev')?.addEventListener('click', () => showAllLogsModal(logs, safePage - 1, title));
   document.getElementById('logs-next')?.addEventListener('click', () => showAllLogsModal(logs, safePage + 1, title));
   modalRoot.querySelectorAll('[data-log-id]').forEach((row) => {
-    row.addEventListener('click', () => {
+    const openLog = () => {
       const log = logs.find((item) => String(item.id) === String(row.dataset.logId));
       if (log) showLogModal(log);
+    };
+    row.addEventListener('click', openLog);
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openLog();
+      }
     });
   });
 }
