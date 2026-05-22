@@ -1039,6 +1039,82 @@ canvas {
   background: var(--surface);
 }
 
+.campaign-tree {
+  display: grid;
+  gap: 14px;
+}
+
+.campaign-node,
+.adset-node {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.campaign-node {
+  padding: 14px;
+}
+
+.campaign-node-head,
+.adset-head {
+  display: grid;
+  gap: 12px;
+}
+
+.campaign-node-head > div:first-child span,
+.adset-head > div:first-child span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.campaign-node-head > div:first-child strong,
+.adset-head > div:first-child strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.metric-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metric-pills span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.metric-pills strong {
+  color: var(--text);
+}
+
+.adset-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.adset-node {
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg-soft));
+}
+
+.adset-node .table-wrap {
+  margin-top: 12px;
+}
+
 .breakdown-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

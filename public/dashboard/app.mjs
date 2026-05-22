@@ -25,6 +25,7 @@ const state = {
   compareData: null,
   productDetailCache: new Map(),
   detailRef: 'all',
+  detailTab: 'overview',
   chartZoomHours: 24,
   admin: {
     tab: 'users',
@@ -649,14 +650,6 @@ function renderShell(route, content) {
             <h1>${escapeHtml(route.title)}</h1>
           </div>
           <div class="toolbar">
-            <label>
-              <span>Từ ngày</span>
-              <input id="global-date-from" type="date" value="${state.dateFrom}">
-            </label>
-            <label>
-              <span>Đến ngày</span>
-              <input id="global-date-to" type="date" value="${state.dateTo}">
-            </label>
             <button class="secondary" id="global-refresh" type="button">Tải lại</button>
             <button class="icon-btn" id="theme-btn" type="button" aria-label="Đổi giao diện">${state.theme === 'dark' ? '☀' : '☾'}</button>
           </div>
@@ -681,8 +674,6 @@ function renderShell(route, content) {
   document.getElementById('menu-btn')?.addEventListener('click', () => toggleSidebar());
   document.getElementById('sidebar-overlay')?.addEventListener('click', closeSidebar);
   document.getElementById('global-refresh')?.addEventListener('click', async () => {
-    state.dateFrom = document.getElementById('global-date-from').value || state.dateFrom;
-    state.dateTo = document.getElementById('global-date-to').value || state.dateTo;
     state.productDetailCache.clear();
     await loadDashboardData();
     render();
@@ -1013,6 +1004,12 @@ function renderProductDetail(marketKey, productKey) {
   const summary = summarizeLogs(logs);
   const events = buildEventDetails(logs);
   const chartType = detail.chartType || 'line';
+  const detailTabs = [
+    ['overview', 'Tổng quan'],
+    ['events', 'Loại sự kiện hoạt động'],
+    ['campaigns', 'Camp hoạt động'],
+  ];
+  if (!detailTabs.some(([key]) => key === state.detailTab)) state.detailTab = 'overview';
 
   setTimeout(drawProductCharts);
 
@@ -1048,6 +1045,18 @@ function renderProductDetail(marketKey, productKey) {
       </div>
     </section>
 
+    <div class="tabs product-detail-tabs">
+      ${detailTabs.map(([key, label]) => `<button class="${state.detailTab === key ? 'active' : ''}" data-detail-tab="${key}" type="button">${label}</button>`).join('')}
+    </div>
+
+    ${state.detailTab === 'overview' ? renderProductOverviewTab(summary, chartType, marketKey, productKey, logs) : ''}
+    ${state.detailTab === 'events' ? renderProductEventsTab(events) : ''}
+    ${state.detailTab === 'campaigns' ? renderCampaignActivityTab(logs) : ''}
+  `;
+}
+
+function renderProductOverviewTab(summary, chartType, marketKey, productKey, logs) {
+  return `
     <div class="kpi-grid product-kpis">
       ${kpiCard('Sự kiện gửi', fmt(summary.sent), 'Tổng sự kiện hệ thống đã gửi')}
       ${kpiCard('Meta nhận thành công', fmt(summary.received), `Số log có meta_status = 'received'`)}
@@ -1080,22 +1089,26 @@ function renderProductDetail(marketKey, productKey) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>Rà soát theo Event Name</strong>
-          <span>Vào từng event để xem campaign, ref, ad set, ad, channel, platform. Purchase mới có value.</span>
-        </div>
-      </div>
-      ${renderEventSections(events)}
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <div>
           <strong>Log gần nhất</strong>
           <span>Hiển thị nhanh 10 log gần nhất theo filter hiện tại.</span>
         </div>
         <button class="secondary" id="view-all-logs" type="button">Xem tất cả</button>
       </div>
       ${renderLogsTable(logs.slice(0, 10))}
+    </section>
+  `;
+}
+
+function renderProductEventsTab(events) {
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <strong>Loại sự kiện hoạt động</strong>
+          <span>Mỗi event hiển thị tổng gửi/thành công/lỗi/user. Purchase mới có value.</span>
+        </div>
+      </div>
+      ${renderEventSections(events)}
     </section>
   `;
 }
@@ -1417,14 +1430,146 @@ function renderEventSections(events) {
               <div><span>Giá trị TB</span><strong>${averageMoneyText(event.valueByCurrency, event.purchaseCountByCurrency)}</strong></div>
             ` : ''}
           </div>
-          <div class="event-dimension-grid">
-            ${event.dimensions.map(([title, rows]) =>
-              renderEventDimensionCard(title, rows, event.name === 'Purchase')
-            ).join('')}
-          </div>
         </article>
       `).join('')}
     </div>
+  `;
+}
+
+function metricBucket(name) {
+  return {
+    name,
+    sent: 0,
+    received: 0,
+    errors: 0,
+    unknown: 0,
+    users: new Set(),
+    firstUsers: new Set(),
+    purchaseEvents: 0,
+    firstPurchases: 0,
+    returningPurchases: 0,
+    valueByCurrency: new Map(),
+    purchaseCountByCurrency: new Map(),
+  };
+}
+
+function addLogMetric(bucket, log) {
+  const user = identityKey(log);
+  bucket.sent += 1;
+  bucket.received += log.meta_status === 'received' ? 1 : 0;
+  bucket.errors += log.meta_status === 'error' ? 1 : 0;
+  bucket.unknown += !log.meta_status || log.meta_status === 'unknown' ? 1 : 0;
+  if (user) bucket.users.add(user);
+
+  if (isPurchase(log)) {
+    bucket.purchaseEvents += 1;
+    const currency = currencyKey(log);
+    const amount = n(log.value || extractCustomData(log).value);
+    addMoney(bucket.valueByCurrency, currency, amount);
+    bucket.purchaseCountByCurrency.set(currency, (bucket.purchaseCountByCurrency.get(currency) || 0) + 1);
+    if (isFirstPurchase(log)) {
+      bucket.firstPurchases += 1;
+      if (user) bucket.firstUsers.add(user);
+    } else {
+      bucket.returningPurchases += 1;
+    }
+  }
+}
+
+function childBucket(map, key) {
+  const name = text(key, '-');
+  if (!map.has(name)) map.set(name, { ...metricBucket(name), children: new Map() });
+  return map.get(name);
+}
+
+function buildCampaignTree(logs) {
+  const campaigns = new Map();
+  logs.forEach((log) => {
+    const campaign = childBucket(campaigns, campaignKey(log));
+    const adSet = childBucket(campaign.children, customValue(log, 'utm_content', 'Không có ad set'));
+    const ad = childBucket(adSet.children, customValue(log, 'utm_term', 'Không có ad'));
+    addLogMetric(campaign, log);
+    addLogMetric(adSet, log);
+    addLogMetric(ad, log);
+  });
+
+  const sortNodes = (nodes) => Array.from(nodes.values())
+    .sort((a, b) => b.sent - a.sent)
+    .map((node) => ({ ...node, children: sortNodes(node.children) }));
+
+  return sortNodes(campaigns);
+}
+
+function metricPills(metric) {
+  return `
+    <div class="metric-pills">
+      <span>Gửi <strong>${fmt(metric.sent)}</strong></span>
+      <span>Thành công <strong>${fmt(metric.received)}</strong></span>
+      <span>Lỗi <strong>${pctText(pct(metric.errors, metric.sent))}</strong></span>
+      <span>User <strong>${fmt(metric.users.size)}</strong></span>
+      <span>Purchase <strong>${fmt(metric.purchaseEvents)}</strong></span>
+      <span>Nạp mới <strong>${fmt(metric.firstUsers.size || metric.firstPurchases)}</strong></span>
+      <span>Value <strong>${metric.purchaseEvents ? moneyMapText(metric.valueByCurrency) : '-'}</strong></span>
+    </div>
+  `;
+}
+
+function renderCampaignActivityTab(logs) {
+  const campaigns = buildCampaignTree(logs);
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <strong>Camp hoạt động</strong>
+          <span>Ghép theo cấu trúc Ads Manager: Campaign → Ad set → Ad từ utm_campaign, utm_content, utm_term.</span>
+        </div>
+      </div>
+      ${campaigns.length ? `
+        <div class="campaign-tree">
+          ${campaigns.map((campaign) => `
+            <article class="campaign-node">
+              <div class="campaign-node-head">
+                <div>
+                  <span>Campaign</span>
+                  <strong class="clip">${escapeHtml(campaign.name)}</strong>
+                </div>
+                ${metricPills(campaign)}
+              </div>
+              <div class="adset-stack">
+                ${campaign.children.map((adSet) => `
+                  <section class="adset-node">
+                    <div class="adset-head">
+                      <div><span>Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong></div>
+                      ${metricPills(adSet)}
+                    </div>
+                    <div class="table-wrap compact-table">
+                      <table>
+                        <thead><tr><th>Ad</th><th>Gửi</th><th>Thành công</th><th>Chênh lệch</th><th>% lỗi</th><th>User</th><th>Purchase</th><th>Nạp mới</th><th>Value</th></tr></thead>
+                        <tbody>
+                          ${adSet.children.map((ad) => `
+                            <tr>
+                              <td class="clip">${escapeHtml(ad.name)}</td>
+                              <td>${fmt(ad.sent)}</td>
+                              <td>${fmt(ad.received)}</td>
+                              <td>${fmt(ad.sent - ad.received)}</td>
+                              <td>${pctText(pct(ad.errors, ad.sent))}</td>
+                              <td>${fmt(ad.users.size)}</td>
+                              <td>${fmt(ad.purchaseEvents)}</td>
+                              <td>${fmt(ad.firstUsers.size || ad.firstPurchases)}</td>
+                              <td>${ad.purchaseEvents ? moneyMapText(ad.valueByCurrency) : '-'}</td>
+                            </tr>
+                          `).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                `).join('')}
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      ` : emptyState('Không có campaign trong khoảng lọc')}
+    </section>
   `;
 }
 
@@ -1894,6 +2039,13 @@ function bindScreenEvents(route) {
   document.getElementById('detail-ref')?.addEventListener('change', (event) => {
     state.detailRef = event.currentTarget.value || 'all';
     render();
+  });
+
+  document.querySelectorAll('[data-detail-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.detailTab = button.dataset.detailTab || 'overview';
+      render();
+    });
   });
 
   document.getElementById('chart-type')?.addEventListener('change', (event) => {
