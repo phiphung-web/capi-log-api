@@ -2,6 +2,7 @@ const TOKEN_KEY = 'capi_dashboard_token';
 const THEME_KEY = 'capi_dashboard_theme';
 const MEDIA_KEY = 'capi_dashboard_media';
 const HIDDEN_MARKETS = new Set(['code', 'codex', 'global']);
+const APP_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DETAIL_LOG_PAGE_LIMIT = 500;
 const DETAIL_LOG_MAX_ROWS = 5000;
 const RECENT_LOG_LIMIT = 100;
@@ -57,8 +58,18 @@ function saveMediaSettings() {
 }
 
 function ymd(date) {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((item) => item.type === 'year')?.value;
+  const month = parts.find((item) => item.type === 'month')?.value;
+  const day = parts.find((item) => item.type === 'day')?.value;
+
+  if (!year || !month || !day) return '';
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(date, amount) {
@@ -72,6 +83,7 @@ function displayDate(value) {
   const date = new Date(String(value).includes('T') ? value : `${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: APP_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -83,6 +95,7 @@ function displayDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: APP_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
