@@ -128,6 +128,14 @@ function money(value, currency = 'USD') {
   }).format(n(value))} ${code || 'USD'}`;
 }
 
+function averageMoney(value, currency = 'USD') {
+  const code = String(currency || 'USD').trim().toUpperCase();
+  return `${new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n(value))} ${code || 'USD'}`;
+}
+
 function currencyKey(log) {
   return String(customValue(log, 'currency', log?.currency || 'USD') || 'USD').trim().toUpperCase() || 'USD';
 }
@@ -1363,7 +1371,7 @@ function averageMoneyText(valueByCurrency, countByCurrency) {
   if (!valueByCurrency || valueByCurrency.size === 0) return money(0);
   return Array.from(valueByCurrency.entries())
     .filter(([, value]) => n(value) !== 0)
-    .map(([currency, value]) => money(value / Math.max(1, countByCurrency?.get(currency) || 0), currency))
+    .map(([currency, value]) => averageMoney(value / Math.max(1, countByCurrency?.get(currency) || 0), currency))
     .join(' / ') || money(0);
 }
 
