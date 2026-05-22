@@ -1128,80 +1128,70 @@ canvas {
   background: var(--surface);
 }
 
-.campaign-tree {
-  display: grid;
-  gap: 14px;
+.campaign-tree-table table {
+  min-width: 1080px;
 }
 
-.campaign-node,
-.adset-node {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-soft);
+.tree-row td:first-child {
+  min-width: 340px;
 }
 
-.campaign-node {
-  padding: 14px;
+.tree-row td:first-child {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-.campaign-node-head,
-.adset-head {
-  display: grid;
-  gap: 12px;
+.tree-toggle {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
 
-.campaign-node-head > div:first-child span,
-.adset-head > div:first-child span {
-  display: block;
+.campaign-row {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.adset-row {
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+
+.ad-row {
+  background: var(--surface);
+}
+
+.tree-level {
+  flex: 0 0 auto;
+  min-width: 68px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 900;
   text-transform: uppercase;
 }
 
-.campaign-node-head > div:first-child strong,
-.adset-head > div:first-child strong {
-  display: block;
-  margin-top: 4px;
+.tree-indent {
+  width: 22px;
+  height: 1px;
+  flex: 0 0 auto;
 }
 
-.metric-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.tree-caret,
+.tree-leaf {
+  width: 18px;
+  flex: 0 0 auto;
+  color: var(--accent);
 }
 
-.metric-pills span {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  min-height: 28px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--surface);
-  font-size: 11px;
-}
-
-.metric-pills strong {
-  color: var(--text);
-}
-
-.adset-stack {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.adset-node {
-  padding: 12px;
-  background: color-mix(in srgb, var(--surface) 70%, var(--bg-soft));
-}
-
-.adset-node .table-wrap {
-  margin-top: 12px;
+.tree-leaf::before {
+  content: "•";
 }
 
 .breakdown-grid {

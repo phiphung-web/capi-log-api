@@ -618,7 +618,7 @@ function renderShell(route, content) {
     <div class="dashboard-shell" id="dashboard-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
-          <div class="brand-mark">CP</div>
+          <div class="brand-mark">MVP</div>
           <div>
             <strong>CAPI Log Platform</strong>
             <span>Đối soát Meta CAPI theo pub và campaign</span>
@@ -1583,17 +1583,16 @@ function buildCampaignTree(logs) {
   return sortNodes(campaigns);
 }
 
-function metricPills(metric) {
+function campaignMetricCells(metric) {
   return `
-    <div class="metric-pills">
-      <span>Gửi <strong>${fmt(metric.sent)}</strong></span>
-      <span>Thành công <strong>${fmt(metric.received)}</strong></span>
-      <span>Lỗi <strong>${pctText(pct(metric.errors, metric.sent))}</strong></span>
-      <span>User <strong>${fmt(metric.users.size)}</strong></span>
-      <span>Purchase <strong>${fmt(metric.purchaseEvents)}</strong></span>
-      <span>Nạp mới <strong>${fmt(metric.firstUsers.size || metric.firstPurchases)}</strong></span>
-      <span>Value <strong>${metric.purchaseEvents ? moneyMapText(metric.valueByCurrency) : '-'}</strong></span>
-    </div>
+    <td>${fmt(metric.sent)}</td>
+    <td>${fmt(metric.received)}</td>
+    <td>${fmt(metric.sent - metric.received)}</td>
+    <td>${pctText(pct(metric.errors, metric.sent))}</td>
+    <td>${fmt(metric.users.size)}</td>
+    <td>${fmt(metric.purchaseEvents)}</td>
+    <td>${fmt(metric.firstUsers.size || metric.firstPurchases)}</td>
+    <td>${metric.purchaseEvents ? moneyMapText(metric.valueByCurrency) : '-'}</td>
   `;
 }
 
@@ -1608,48 +1607,56 @@ function renderCampaignActivityTab(logs) {
         </div>
       </div>
       ${campaigns.length ? `
-        <div class="campaign-tree">
-          ${campaigns.map((campaign) => `
-            <article class="campaign-node">
-              <div class="campaign-node-head">
-                <div>
-                  <span>Campaign</span>
-                  <strong class="clip">${escapeHtml(campaign.name)}</strong>
-                </div>
-                ${metricPills(campaign)}
-              </div>
-              <div class="adset-stack">
-                ${campaign.children.map((adSet) => `
-                  <section class="adset-node">
-                    <div class="adset-head">
-                      <div><span>Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong></div>
-                      ${metricPills(adSet)}
-                    </div>
-                    <div class="table-wrap compact-table">
-                      <table>
-                        <thead><tr><th>Ad</th><th>Gửi</th><th>Thành công</th><th>Chênh lệch</th><th>% lỗi</th><th>User</th><th>Purchase</th><th>Nạp mới</th><th>Value</th></tr></thead>
-                        <tbody>
-                          ${adSet.children.map((ad) => `
-                            <tr>
-                              <td class="clip">${escapeHtml(ad.name)}</td>
-                              <td>${fmt(ad.sent)}</td>
-                              <td>${fmt(ad.received)}</td>
-                              <td>${fmt(ad.sent - ad.received)}</td>
-                              <td>${pctText(pct(ad.errors, ad.sent))}</td>
-                              <td>${fmt(ad.users.size)}</td>
-                              <td>${fmt(ad.purchaseEvents)}</td>
-                              <td>${fmt(ad.firstUsers.size || ad.firstPurchases)}</td>
-                              <td>${ad.purchaseEvents ? moneyMapText(ad.valueByCurrency) : '-'}</td>
-                            </tr>
-                          `).join('')}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                `).join('')}
-              </div>
-            </article>
-          `).join('')}
+        <div class="table-wrap campaign-tree-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Campaign / Ad set / Ad</th>
+                <th>Gửi</th>
+                <th>Thành công</th>
+                <th>Chênh lệch</th>
+                <th>% lỗi</th>
+                <th>User</th>
+                <th>Purchase</th>
+                <th>Nạp mới</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+          ${campaigns.map((campaign, campaignIndex) => {
+            const campaignId = `camp-${campaignIndex}`;
+            return `
+              <tr class="tree-row campaign-row" data-tree-row="campaign" data-campaign-id="${campaignId}">
+                <td>
+                  <button class="tree-toggle" data-toggle-campaign="${campaignId}" type="button" aria-expanded="true">
+                    <span class="tree-caret">▾</span><span class="tree-level">Campaign</span><strong class="clip">${escapeHtml(campaign.name)}</strong>
+                  </button>
+                </td>
+                ${campaignMetricCells(campaign)}
+              </tr>
+                ${campaign.children.map((adSet, adSetIndex) => {
+                  const adSetId = `${campaignId}-adset-${adSetIndex}`;
+                  return `
+                  <tr class="tree-row adset-row" data-tree-row="adset" data-campaign-id="${campaignId}" data-adset-id="${adSetId}">
+                    <td>
+                      <button class="tree-toggle" data-toggle-adset="${adSetId}" type="button" aria-expanded="true">
+                        <span class="tree-indent"></span><span class="tree-caret">▾</span><span class="tree-level">Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong>
+                      </button>
+                    </td>
+                    ${campaignMetricCells(adSet)}
+                  </tr>
+                  ${adSet.children.map((ad) => `
+                    <tr class="tree-row ad-row" data-tree-row="ad" data-campaign-id="${campaignId}" data-adset-id="${adSetId}">
+                      <td><span class="tree-indent"></span><span class="tree-indent"></span><span class="tree-leaf"></span><span class="tree-level">Ad</span><strong class="clip">${escapeHtml(ad.name)}</strong></td>
+                      ${campaignMetricCells(ad)}
+                    </tr>
+                  `).join('')}
+                `;
+                }).join('')}
+          `;
+          }).join('')}
+            </tbody>
+          </table>
         </div>
       ` : emptyState('Không có campaign trong khoảng lọc')}
     </section>
@@ -2151,6 +2158,30 @@ function bindScreenEvents(route) {
     const detail = currentProductDetail(route.marketKey, route.productKey);
     const logs = (detail?.logs || []).filter((log) => state.detailRef === 'all' || logRefKey(log) === state.detailRef);
     showAllLogsModal(logs, 0);
+  });
+
+  document.querySelectorAll('[data-toggle-campaign]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.toggleCampaign;
+      const expanded = button.getAttribute('aria-expanded') !== 'false';
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.querySelector('.tree-caret').textContent = expanded ? '▸' : '▾';
+      document.querySelectorAll(`[data-campaign-id="${CSS.escape(id)}"][data-tree-row]:not(.campaign-row)`).forEach((row) => {
+        row.hidden = expanded;
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-toggle-adset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.toggleAdset;
+      const expanded = button.getAttribute('aria-expanded') !== 'false';
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.querySelector('.tree-caret').textContent = expanded ? '▸' : '▾';
+      document.querySelectorAll(`[data-adset-id="${CSS.escape(id)}"][data-tree-row="ad"]`).forEach((row) => {
+        row.hidden = expanded;
+      });
+    });
   });
 
   document.querySelectorAll('[data-admin-tab]').forEach((button) => {
