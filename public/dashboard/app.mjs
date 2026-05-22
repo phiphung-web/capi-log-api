@@ -868,7 +868,7 @@ function renderMarkets() {
             </div>
             <div class="card-action-row">
               <em class="badge ${receiving ? 'good' : 'warn'}">${receiving ? 'Đang nhận log' : 'Ngừng nhận log'}</em>
-              <span class="open-hint">Mở →</span>
+              <span class="action-arrow" aria-hidden="true">→</span>
             </div>
           </button>
         `;
@@ -950,7 +950,7 @@ function renderProductCard(product) {
       <button class="card-link" data-go="${productPath(product)}" type="button">
         <strong>${escapeHtml(productName(product))}</strong>
         <span>${escapeHtml(marketLabel)} · ${escapeHtml(product.product_key)}</span>
-        <small class="open-hint">Xem chi tiết →</small>
+        <i class="action-arrow" aria-hidden="true">→</i>
       </button>
       <dl>
         <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
@@ -1199,7 +1199,7 @@ function renderProductOverviewTab(summary, chartType, marketKey, productKey, rec
       <div class="panel-head">
         <div>
           <strong>Log gần nhất</strong>
-          <span>Click vào từng dòng để xem payload/response. Danh sách đầy đủ giữ tối đa ${fmt(RECENT_LOG_LIMIT)} log.</span>
+          <span>Hiển thị nhanh 10 log gần nhất, danh sách đầy đủ giữ tối đa ${fmt(RECENT_LOG_LIMIT)} log.</span>
         </div>
         <button class="secondary" id="view-all-logs" type="button">Xem ${fmt(RECENT_LOG_LIMIT)} log gần nhất</button>
       </div>
@@ -1605,7 +1605,7 @@ function renderEventSections(events) {
               <strong>${escapeHtml(event.name)}</strong>
               <span>${fmt(event.sent)} gửi · ${fmt(event.received)} Meta nhận thành công · lỗi ${pctText(pct(event.errors, event.sent))}</span>
             </div>
-            <em class="expand-hint">Mở chi tiết</em>
+            <em class="expand-icon" aria-hidden="true"></em>
             ${sparkline(event.logs, event.name)}
           </summary>
           <div class="event-metrics">
@@ -1739,7 +1739,7 @@ function renderCampaignActivityTab(logs) {
               <tr class="tree-row campaign-row" data-tree-row="campaign" data-campaign-id="${campaignId}">
                 <td>
                   <button class="tree-toggle" data-toggle-campaign="${campaignId}" type="button" aria-expanded="true">
-                    <span class="tree-caret">▾</span><span class="tree-level">Campaign</span><strong class="clip">${escapeHtml(campaign.name)}</strong><small>Mở/đóng</small>
+                    <span class="tree-caret">▾</span><span class="tree-level">Campaign</span><strong class="clip">${escapeHtml(campaign.name)}</strong>
                   </button>
                 </td>
                 ${campaignMetricCells(campaign)}
@@ -1750,7 +1750,7 @@ function renderCampaignActivityTab(logs) {
                   <tr class="tree-row adset-row" data-tree-row="adset" data-campaign-id="${campaignId}" data-adset-id="${adSetId}">
                     <td>
                       <button class="tree-toggle" data-toggle-adset="${adSetId}" type="button" aria-expanded="true">
-                        <span class="tree-indent"></span><span class="tree-caret">▾</span><span class="tree-level">Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong><small>Mở/đóng</small>
+                        <span class="tree-indent"></span><span class="tree-caret">▾</span><span class="tree-level">Ad set</span><strong class="clip">${escapeHtml(adSet.name)}</strong>
                       </button>
                     </td>
                     ${campaignMetricCells(adSet)}
@@ -1861,7 +1861,7 @@ function renderLogsTable(logs) {
               <td>${purchaseMoney(log)}</td>
               <td><em class="badge ${classForStatus(log.meta_status)}">${escapeHtml(statusLabel(log.meta_status))}</em></td>
               <td class="clip">${escapeHtml(text(log.fbtrace_id))}</td>
-              <td class="row-action">Chi tiết →</td>
+              <td class="row-action" aria-hidden="true">→</td>
             </tr>
           `).join('')}
         </tbody>

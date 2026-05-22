@@ -730,9 +730,9 @@ button.data-card {
   transform: translateY(-2px);
 }
 
-.data-card:hover .open-hint,
-.card-link:hover .open-hint,
-.rank-row:hover .open-hint,
+.data-card:hover .action-arrow,
+.card-link:hover .action-arrow,
+.rank-row:hover .action-arrow,
 .clickable-row:hover .row-action {
   color: var(--accent);
   opacity: 1;
@@ -776,10 +776,9 @@ button.data-card {
   text-align: left;
 }
 
-.open-hint,
+.action-arrow,
 .row-action,
-.expand-hint,
-.tree-toggle small {
+.expand-icon {
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
@@ -788,9 +787,10 @@ button.data-card {
   transition: color 0.16s ease, opacity 0.16s ease;
 }
 
-.card-link .open-hint {
+.card-link .action-arrow {
   display: inline-flex;
   margin-top: 8px;
+  font-style: normal;
 }
 
 dl {
@@ -1092,13 +1092,26 @@ canvas {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
 }
 
-.event-card[open] .expand-hint {
+.event-card[open] .expand-icon {
   color: var(--accent);
 }
 
-.event-card[open] .expand-hint::before {
-  content: "Đang mở · ";
-  color: var(--muted);
+.expand-icon::before {
+  content: "⌄";
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.event-card[open] .expand-icon::before {
+  transform: rotate(180deg);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
 .event-head {
@@ -1286,11 +1299,6 @@ canvas {
 
 .tree-toggle:hover {
   color: var(--accent);
-}
-
-.tree-toggle:hover small {
-  color: var(--accent);
-  opacity: 1;
 }
 
 .tree-row:hover {
