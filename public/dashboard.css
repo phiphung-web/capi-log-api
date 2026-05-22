@@ -235,10 +235,52 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
-.title-block span {
-  display: block;
+.title-block {
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.3;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.breadcrumb::-webkit-scrollbar {
+  display: none;
+}
+
+.breadcrumb button,
+.breadcrumb span,
+.breadcrumb i {
+  flex: 0 0 auto;
+}
+
+.breadcrumb button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.breadcrumb button:hover {
+  color: var(--accent);
+}
+
+.breadcrumb span[aria-current="page"] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.breadcrumb i {
+  color: var(--faint);
+  font-style: normal;
 }
 
 .title-block h1,
@@ -361,6 +403,11 @@ textarea:focus {
 .notice.error {
   border-color: color-mix(in srgb, var(--bad) 55%, var(--border));
   color: var(--bad);
+}
+
+.notice.warning {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  color: var(--warn);
 }
 
 .kpi-grid,

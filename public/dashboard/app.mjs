@@ -2,6 +2,9 @@ const TOKEN_KEY = 'capi_dashboard_token';
 const THEME_KEY = 'capi_dashboard_theme';
 const MEDIA_KEY = 'capi_dashboard_media';
 const HIDDEN_MARKETS = new Set(['code', 'codex', 'global']);
+const DETAIL_LOG_PAGE_LIMIT = 500;
+const DETAIL_LOG_MAX_ROWS = 5000;
+const RECENT_LOG_LIMIT = 100;
 
 const state = {
   auth: null,
@@ -62,17 +65,6 @@ function addDays(date, amount) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
-}
-
-function startOfWeek(date) {
-  const next = new Date(date);
-  const day = next.getDay() || 7;
-  next.setDate(next.getDate() - day + 1);
-  return next;
-}
-
-function startOfMonth(date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
 function displayDate(value) {
@@ -285,7 +277,7 @@ function query(params) {
   return value ? `?${value}` : '';
 }
 
-async function request(path, options = {}) {
+async function requestEnvelope(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
@@ -312,6 +304,11 @@ async function request(path, options = {}) {
     throw new Error(payload?.message || `API lỗi ${response.status}`);
   }
 
+  return payload;
+}
+
+async function request(path, options = {}) {
+  const payload = await requestEnvelope(path, options);
   return payload?.data ?? payload;
 }
 
@@ -327,6 +324,12 @@ const api = {
       ? `/v1/markets/${encodeURIComponent(marketKey)}/products/${encodeURIComponent(productKey)}/capi/logs`
       : '/v1/capi/logs';
     return request(`${base}${query({ limit, offset, date_from, date_to })}`);
+  },
+  logsPage: ({ marketKey = '', productKey = '', limit = 250, offset = 0, date_from, date_to } = {}) => {
+    const base = marketKey && productKey
+      ? `/v1/markets/${encodeURIComponent(marketKey)}/products/${encodeURIComponent(productKey)}/capi/logs`
+      : '/v1/capi/logs';
+    return requestEnvelope(`${base}${query({ limit, offset, date_from, date_to })}`);
   },
   productsCompare: ({ products, date_from, date_to }) => request(`/v1/analytics/products/compare${query({
     products,
@@ -646,7 +649,7 @@ function renderShell(route, content) {
         <header class="topbar">
           <button class="icon-btn mobile-only" id="menu-btn" type="button" aria-label="Mở menu" aria-controls="sidebar" aria-expanded="false">☰</button>
           <div class="title-block">
-            <span>${escapeHtml(breadcrumb(route))}</span>
+            ${renderBreadcrumb(route)}
             <h1>${escapeHtml(route.title)}</h1>
           </div>
           <div class="toolbar">
@@ -680,11 +683,67 @@ function renderShell(route, content) {
   });
 }
 
-function breadcrumb(route) {
-  if (route.name === 'marketDetail') return `Hệ thống / Thị trường / ${route.marketKey}`;
-  if (route.name === 'productDetail') return `Hệ thống / Sản phẩm / ${route.marketKey}:${route.productKey}`;
-  if (route.name === 'admin') return 'Hệ thống / Quản trị';
-  return `Hệ thống / ${route.title}`;
+function renderBreadcrumb(route) {
+  const items = breadcrumbItems(route);
+  return `
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      ${items.map((item, index) => {
+        const isLast = index === items.length - 1;
+        const label = escapeHtml(item.label);
+        const content = item.path && !isLast
+          ? `<button data-go="${escapeHtml(item.path)}" type="button">${label}</button>`
+          : `<span aria-current="${isLast ? 'page' : 'false'}">${label}</span>`;
+        return `${index ? '<i>/</i>' : ''}${content}`;
+      }).join('')}
+    </nav>
+  `;
+}
+
+function breadcrumbItems(route) {
+  const base = [{ label: 'Hệ thống', path: '/dashboard' }];
+  if (route.name === 'home') return [...base, { label: 'Trang chủ' }];
+  if (route.name === 'markets') return [...base, { label: 'Thị trường' }];
+  if (route.name === 'marketDetail') {
+    const market = getMarket(route.marketKey);
+    return [
+      ...base,
+      { label: 'Thị trường', path: '/dashboard/markets' },
+      { label: marketMeta(market).name || route.marketKey },
+    ];
+  }
+  if (route.name === 'products') return [...base, { label: 'Sản phẩm' }];
+  if (route.name === 'productDetail') {
+    const market = getMarket(route.marketKey);
+    const product = getProduct(route.marketKey, route.productKey);
+    return [
+      ...base,
+      { label: 'Sản phẩm', path: '/dashboard/products' },
+      { label: marketMeta(market).name || route.marketKey, path: `/dashboard/markets/${encodeURIComponent(route.marketKey)}` },
+      { label: productName(product), path: productPath(product) },
+      { label: detailTabLabel(state.detailTab) },
+    ];
+  }
+  if (route.name === 'admin') {
+    return [...base, { label: 'Quản trị', path: '/dashboard/admin' }, { label: adminTabLabel(state.admin.tab) }];
+  }
+  return [...base, { label: route.title }];
+}
+
+function detailTabLabel(tab) {
+  return {
+    overview: 'Tổng quan',
+    events: 'Loại sự kiện',
+    campaigns: 'Camp hoạt động',
+  }[tab] || 'Tổng quan';
+}
+
+function adminTabLabel(tab) {
+  return {
+    users: 'User',
+    markets: 'Thị trường',
+    products: 'Sản phẩm',
+    maintenance: 'Maintenance',
+  }[tab] || 'User';
 }
 
 function setSidebarOpen(open) {
@@ -880,7 +939,7 @@ function renderProductCard(product) {
         <div><dt>Sự kiện hôm nay</dt><dd>${fmt(stats.sent)}</dd></div>
         <div><dt>Thành công</dt><dd>${fmt(stats.received)}</dd></div>
         <div><dt>% lỗi</dt><dd>${pctText(stats.errorRate)}</dd></div>
-        <div><dt>Nhóm</dt><dd>${escapeHtml(text(product.category))}</dd></div>
+        <div><dt>Thị trường</dt><dd>${escapeHtml(product.market_key)}</dd></div>
       </dl>
     </article>
   `;
@@ -967,16 +1026,19 @@ async function ensureProductDetail(marketKey, productKey) {
     const today = ymd(new Date());
     const yesterday = ymd(addDays(new Date(), -1));
     const lastWeek = ymd(addDays(new Date(), -7));
-    const [logs, todayLogs, yesterdayLogs, lastWeekLogs] = await Promise.all([
-      api.logs({ marketKey, productKey, limit: 500, date_from: state.dateFrom, date_to: state.dateTo }),
-      api.logs({ marketKey, productKey, limit: 500, date_from: today, date_to: today }),
-      api.logs({ marketKey, productKey, limit: 500, date_from: yesterday, date_to: yesterday }),
-      api.logs({ marketKey, productKey, limit: 500, date_from: lastWeek, date_to: lastWeek }),
+    const [statsLogs, recentLogs, todayLogs, yesterdayLogs, lastWeekLogs] = await Promise.all([
+      fetchDetailLogs({ marketKey, productKey, date_from: state.dateFrom, date_to: state.dateTo }),
+      api.logs({ marketKey, productKey, limit: RECENT_LOG_LIMIT, date_from: state.dateFrom, date_to: state.dateTo }),
+      fetchDetailLogs({ marketKey, productKey, date_from: today, date_to: today }),
+      fetchDetailLogs({ marketKey, productKey, date_from: yesterday, date_to: yesterday }),
+      fetchDetailLogs({ marketKey, productKey, date_from: lastWeek, date_to: lastWeek }),
     ]);
 
     state.productDetailCache.set(cacheKey, {
-      logs: Array.isArray(logs) ? logs : [],
-      compare: { today: todayLogs || [], yesterday: yesterdayLogs || [], lastWeek: lastWeekLogs || [] },
+      statsLogs: statsLogs.rows,
+      recentLogs: Array.isArray(recentLogs) ? recentLogs : [],
+      truncated: statsLogs.truncated,
+      compare: { today: todayLogs.rows, yesterday: yesterdayLogs.rows, lastWeek: lastWeekLogs.rows },
       chartType: 'line',
     });
   } catch (err) {
@@ -985,6 +1047,34 @@ async function ensureProductDetail(marketKey, productKey) {
   }
 
   render();
+}
+
+async function fetchDetailLogs({ marketKey, productKey, date_from, date_to, maxRows = DETAIL_LOG_MAX_ROWS }) {
+  const rows = [];
+  let offset = 0;
+  let total = 0;
+
+  while (rows.length < maxRows) {
+    const page = await api.logsPage({
+      marketKey,
+      productKey,
+      limit: Math.min(DETAIL_LOG_PAGE_LIMIT, maxRows - rows.length),
+      offset,
+      date_from,
+      date_to,
+    });
+    const pageRows = Array.isArray(page?.data) ? page.data : [];
+    total = n(page?.pagination?.total);
+    rows.push(...pageRows);
+
+    if (pageRows.length < DETAIL_LOG_PAGE_LIMIT || (total && rows.length >= total)) break;
+    offset += DETAIL_LOG_PAGE_LIMIT;
+  }
+
+  return {
+    rows,
+    truncated: total > rows.length,
+  };
 }
 
 function currentProductDetail(marketKey, productKey) {
@@ -996,14 +1086,17 @@ function renderProductDetail(marketKey, productKey) {
   const detail = currentProductDetail(marketKey, productKey);
   if (!detail) return loadingScreen('Đang tải chi tiết sản phẩm...');
 
-  const allLogs = detail.logs || [];
+  const allLogs = detail.statsLogs || detail.logs || [];
+  const recentLogs = detail.recentLogs || allLogs.slice(0, RECENT_LOG_LIMIT);
   const refOptions = Array.from(new Set(allLogs.map(logRefKey).filter(Boolean))).sort();
   const activeRef = refOptions.includes(state.detailRef) ? state.detailRef : 'all';
   if (state.detailRef !== activeRef) state.detailRef = activeRef;
   const logs = activeRef === 'all' ? allLogs : allLogs.filter((log) => logRefKey(log) === activeRef);
+  const filteredRecentLogs = activeRef === 'all' ? recentLogs : recentLogs.filter((log) => logRefKey(log) === activeRef);
   const summary = summarizeLogs(logs);
   const events = buildEventDetails(logs);
   const chartType = detail.chartType || 'line';
+  const activeRange = currentRangeKey();
   const detailTabs = [
     ['overview', 'Tổng quan'],
     ['events', 'Loại sự kiện hoạt động'],
@@ -1017,45 +1110,44 @@ function renderProductDetail(marketKey, productKey) {
     <section class="section-head">
       <div>
         <h2>${escapeHtml(productName(product))}</h2>
-        <p>${escapeHtml(marketKey)} · ${escapeHtml(productKey)} · ${displayDate(state.dateFrom)} - ${displayDate(state.dateTo)}</p>
+        <p>${escapeHtml(marketKey)} · ${escapeHtml(productKey)} · ${escapeHtml(rangeDisplayText())}</p>
       </div>
       <button class="secondary" data-go="/dashboard/products" type="button">Quay lại sản phẩm</button>
     </section>
 
     <section class="panel filters-panel">
-      <div class="preset-row">
-        ${[
-          ['today', 'Hôm nay'],
-          ['yesterday', 'Hôm qua'],
-          ['last7', '7 ngày trước'],
-          ['week', 'Tuần này'],
-          ['month', 'Tháng này'],
-        ].map(([key, label]) => `<button class="chip" data-preset="${key}" type="button">${label}</button>`).join('')}
-      </div>
       <div class="date-row">
-        <label><span>Ngày bắt đầu</span><input id="detail-date-from" type="date" value="${state.dateFrom}"></label>
-        <label><span>Ngày kết thúc</span><input id="detail-date-to" type="date" value="${state.dateTo}"></label>
+        <label><span>Khoảng thời gian</span>
+          <select id="detail-range">
+            ${[
+              ['today', 'Hôm nay'],
+              ['yesterday', 'Hôm qua'],
+              ['last7', '7 ngày trước'],
+              ['all', 'All'],
+            ].map(([key, label]) => `<option value="${key}" ${activeRange === key ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </label>
         <label><span>Ref</span>
           <select id="detail-ref">
             <option value="all">Tất cả ref</option>
             ${refOptions.map((ref) => `<option value="${escapeHtml(ref)}" ${activeRef === ref ? 'selected' : ''}>${escapeHtml(ref)}</option>`).join('')}
           </select>
         </label>
-        <button class="primary" id="detail-apply" type="button">Áp dụng</button>
       </div>
     </section>
+    ${detail.truncated ? `<div class="notice warning">Dữ liệu thống kê quá lớn, đang tính trên ${fmt(DETAIL_LOG_MAX_ROWS)} log mới nhất trong khoảng đã chọn. Bảng log chi tiết chỉ giữ ${fmt(RECENT_LOG_LIMIT)} log gần nhất.</div>` : ''}
 
     <div class="tabs product-detail-tabs">
       ${detailTabs.map(([key, label]) => `<button class="${state.detailTab === key ? 'active' : ''}" data-detail-tab="${key}" type="button">${label}</button>`).join('')}
     </div>
 
-    ${state.detailTab === 'overview' ? renderProductOverviewTab(summary, chartType, marketKey, productKey, logs) : ''}
+    ${state.detailTab === 'overview' ? renderProductOverviewTab(summary, chartType, marketKey, productKey, filteredRecentLogs) : ''}
     ${state.detailTab === 'events' ? renderProductEventsTab(events) : ''}
     ${state.detailTab === 'campaigns' ? renderCampaignActivityTab(logs) : ''}
   `;
 }
 
-function renderProductOverviewTab(summary, chartType, marketKey, productKey, logs) {
+function renderProductOverviewTab(summary, chartType, marketKey, productKey, recentLogs) {
   return `
     <div class="kpi-grid product-kpis">
       ${kpiCard('Sự kiện gửi', fmt(summary.sent), 'Tổng sự kiện hệ thống đã gửi')}
@@ -1090,11 +1182,11 @@ function renderProductOverviewTab(summary, chartType, marketKey, productKey, log
       <div class="panel-head">
         <div>
           <strong>Log gần nhất</strong>
-          <span>Hiển thị nhanh 10 log gần nhất theo filter hiện tại.</span>
+          <span>Hiển thị nhanh 10 log gần nhất, danh sách đầy đủ giữ tối đa ${fmt(RECENT_LOG_LIMIT)} log.</span>
         </div>
-        <button class="secondary" id="view-all-logs" type="button">Xem tất cả</button>
+        <button class="secondary" id="view-all-logs" type="button">Xem ${fmt(RECENT_LOG_LIMIT)} log gần nhất</button>
       </div>
-      ${renderLogsTable(logs.slice(0, 10))}
+      ${renderLogsTable(recentLogs.slice(0, 10))}
     </section>
   `;
 }
@@ -2018,7 +2110,7 @@ function renderAdminProducts() {
       <div class="panel-head"><strong>Quản lý Sản phẩm</strong></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Sản phẩm</th><th>Thị trường</th><th>Category</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Sản phẩm</th><th>Thị trường</th><th>Status</th><th>Notes</th><th></th></tr></thead>
           <tbody>
             ${state.products.map((product) => `
               <tr>
@@ -2029,7 +2121,6 @@ function renderAdminProducts() {
                   </div>
                 </td>
                 <td>${escapeHtml(product.market_key)}</td>
-                <td>${escapeHtml(text(product.category))}</td>
                 <td><em class="badge ${classForStatus(product.status || 'active')}">${escapeHtml(statusLabel(product.status || 'active'))}</em></td>
                 <td class="clip">${escapeHtml(text(product.notes))}</td>
                 <td><button class="secondary" data-edit-product="${escapeHtml(`${product.market_key}:${product.product_key}`)}" type="button">Sửa</button></td>
@@ -2101,28 +2192,25 @@ function bindScreenEvents(route) {
     row.addEventListener('click', () => {
       const allLogs = [
         ...state.logs,
-        ...Array.from(state.productDetailCache.values()).flatMap((item) => item.logs || []),
+        ...Array.from(state.productDetailCache.values()).flatMap((item) => [
+          ...(item.recentLogs || []),
+          ...(item.statsLogs || item.logs || []),
+        ]),
       ];
       showLogModal(allLogs.find((log) => String(log.id) === String(row.dataset.logId)));
     });
   });
 
-  document.querySelectorAll('[data-preset]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const range = presetRange(button.dataset.preset);
+  document.getElementById('detail-range')?.addEventListener('change', async (event) => {
+    const range = presetRange(event.currentTarget.value);
+    const dateChanged = range.dateFrom !== state.dateFrom || range.dateTo !== state.dateTo;
+    if (dateChanged) {
       state.dateFrom = range.dateFrom;
       state.dateTo = range.dateTo;
+      state.detailRef = 'all';
       state.productDetailCache.clear();
-      loadDashboardData().then(render);
-    });
-  });
-
-  document.getElementById('detail-apply')?.addEventListener('click', async () => {
-    state.dateFrom = document.getElementById('detail-date-from').value || state.dateFrom;
-    state.dateTo = document.getElementById('detail-date-to').value || state.dateTo;
-    state.detailRef = document.getElementById('detail-ref')?.value || 'all';
-    state.productDetailCache.clear();
-    await loadDashboardData();
+      await loadDashboardData();
+    }
     render();
   });
 
@@ -2156,8 +2244,8 @@ function bindScreenEvents(route) {
 
   document.getElementById('view-all-logs')?.addEventListener('click', () => {
     const detail = currentProductDetail(route.marketKey, route.productKey);
-    const logs = (detail?.logs || []).filter((log) => state.detailRef === 'all' || logRefKey(log) === state.detailRef);
-    showAllLogsModal(logs, 0);
+    const logs = (detail?.recentLogs || detail?.logs || []).filter((log) => state.detailRef === 'all' || logRefKey(log) === state.detailRef);
+    showAllLogsModal(logs, 0, `${fmt(RECENT_LOG_LIMIT)} log gần nhất`);
   });
 
   document.querySelectorAll('[data-toggle-campaign]').forEach((button) => {
@@ -2196,14 +2284,26 @@ function bindScreenEvents(route) {
 
 function presetRange(preset) {
   const now = new Date();
+  if (preset === 'all') return { dateFrom: '', dateTo: '' };
   if (preset === 'today') return { dateFrom: ymd(now), dateTo: ymd(now) };
   if (preset === 'yesterday') {
     const yesterday = addDays(now, -1);
     return { dateFrom: ymd(yesterday), dateTo: ymd(yesterday) };
   }
-  if (preset === 'week') return { dateFrom: ymd(startOfWeek(now)), dateTo: ymd(now) };
-  if (preset === 'month') return { dateFrom: ymd(startOfMonth(now)), dateTo: ymd(now) };
   return { dateFrom: ymd(addDays(now, -6)), dateTo: ymd(now) };
+}
+
+function currentRangeKey() {
+  return ['today', 'yesterday', 'last7', 'all'].find((key) => {
+    const range = presetRange(key);
+    return range.dateFrom === state.dateFrom && range.dateTo === state.dateTo;
+  }) || '';
+}
+
+function rangeDisplayText() {
+  if (!state.dateFrom && !state.dateTo) return 'All';
+  if (state.dateFrom === state.dateTo) return displayDate(state.dateFrom);
+  return `${displayDate(state.dateFrom)} - ${displayDate(state.dateTo)}`;
 }
 
 async function runProductsCompare() {
@@ -2421,7 +2521,7 @@ function showProductForm(product) {
   const media = productMedia(product);
   showCatalogForm({
     title: `Sửa sản phẩm ${product.market_key}:${product.product_key}`,
-    fields: ['display_name', 'category', 'status', 'image_url', 'notes'],
+    fields: ['display_name', 'status', 'image_url', 'notes'],
     values: { ...product, image_url: media.image_url || '' },
     onSubmit: async (payload) => {
       if (!(await confirmDialog(`Bạn có chắc muốn lưu sản phẩm ${product.product_key}?`))) return;
@@ -2581,7 +2681,7 @@ function showLogModal(log) {
   `);
 }
 
-function showAllLogsModal(logs, page = 0) {
+function showAllLogsModal(logs, page = 0, title = 'Log gần nhất') {
   const pageSize = 25;
   const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
   const safePage = Math.min(Math.max(page, 0), totalPages - 1);
@@ -2590,7 +2690,7 @@ function showAllLogsModal(logs, page = 0) {
     <div class="log-modal">
       <div class="modal-head">
         <div>
-          <h2>Tất cả log</h2>
+          <h2>${escapeHtml(title)}</h2>
           <p>${fmt(logs.length)} log · trang ${safePage + 1}/${totalPages}</p>
         </div>
         <button class="ghost" data-close-modal type="button">Đóng</button>
@@ -2602,8 +2702,8 @@ function showAllLogsModal(logs, page = 0) {
       </div>
     </div>
   `);
-  document.getElementById('logs-prev')?.addEventListener('click', () => showAllLogsModal(logs, safePage - 1));
-  document.getElementById('logs-next')?.addEventListener('click', () => showAllLogsModal(logs, safePage + 1));
+  document.getElementById('logs-prev')?.addEventListener('click', () => showAllLogsModal(logs, safePage - 1, title));
+  document.getElementById('logs-next')?.addEventListener('click', () => showAllLogsModal(logs, safePage + 1, title));
   modalRoot.querySelectorAll('[data-log-id]').forEach((row) => {
     row.addEventListener('click', () => {
       const log = logs.find((item) => String(item.id) === String(row.dataset.logId));
