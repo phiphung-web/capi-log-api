@@ -114,10 +114,29 @@ function fmt(value, digits = 0) {
 
 function money(value, currency = 'USD') {
   const code = String(currency || 'USD').trim().toUpperCase();
+  const raw = value === null || value === undefined ? '' : String(value).replace(/,/g, '').trim();
+  const decimals = raw.includes('.') ? raw.split('.')[1].replace(/0+$/, '').length : 0;
   return `${new Intl.NumberFormat('vi-VN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.min(Math.max(decimals, 0), 6),
   }).format(n(value))} ${code || 'USD'}`;
+}
+
+function currencyKey(log) {
+  return String(customValue(log, 'currency', log?.currency || 'USD') || 'USD').trim().toUpperCase() || 'USD';
+}
+
+function addMoney(map, currency, value) {
+  const code = String(currency || 'USD').trim().toUpperCase() || 'USD';
+  map.set(code, (map.get(code) || 0) + n(value));
+}
+
+function moneyMapText(map) {
+  if (!map || map.size === 0) return money(0);
+  return Array.from(map.entries())
+    .filter(([, value]) => n(value) !== 0)
+    .map(([currency, value]) => money(value, currency))
+    .join(' / ') || money(0);
 }
 
 function pct(value, total) {
@@ -1058,7 +1077,6 @@ function renderProductDetail(marketKey, productKey) {
       <div class="chart-tooltip" id="chart-tooltip"></div>
     </section>
 
-    ${renderPurchaseInsights(logs)}
     ${renderParameterBreakdowns(logs)}
 
     <section class="panel">
@@ -1153,6 +1171,8 @@ function groupLogs(logs, keyFn) {
       unknown: 0,
       users: new Set(),
       value: 0,
+      valueByCurrency: new Map(),
+      purchaseCountByCurrency: new Map(),
     };
     item.sent += 1;
     item.received += log.meta_status === 'received' ? 1 : 0;
@@ -1160,7 +1180,13 @@ function groupLogs(logs, keyFn) {
     item.errors += log.meta_status === 'error' ? 1 : 0;
     item.unknown += !log.meta_status || log.meta_status === 'unknown' ? 1 : 0;
     if (log.user_id) item.users.add(log.user_id);
-    item.value += n(log.value);
+    if (isPurchase(log)) {
+      const currency = currencyKey(log);
+      const amount = n(log.value || extractCustomData(log).value);
+      item.value += amount;
+      addMoney(item.valueByCurrency, currency, amount);
+      item.purchaseCountByCurrency.set(currency, (item.purchaseCountByCurrency.get(currency) || 0) + 1);
+    }
     map.set(key, item);
   });
   return Array.from(map.values()).sort((a, b) => b.sent - a.sent);
@@ -1182,6 +1208,8 @@ function groupDimension(logs, keyFn) {
       firstPurchases: 0,
       returningPurchases: 0,
       value: 0,
+      valueByCurrency: new Map(),
+      purchaseCountByCurrency: new Map(),
       deposit: 0,
     };
     const user = identityKey(log);
@@ -1193,7 +1221,11 @@ function groupDimension(logs, keyFn) {
     if (user) item.users.add(user);
     if (purchase) {
       item.purchaseEvents += 1;
-      item.value += n(log.value || extractCustomData(log).value);
+      const currency = currencyKey(log);
+      const amount = n(log.value || extractCustomData(log).value);
+      item.value += amount;
+      addMoney(item.valueByCurrency, currency, amount);
+      item.purchaseCountByCurrency.set(currency, (item.purchaseCountByCurrency.get(currency) || 0) + 1);
       item.deposit += n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount);
       if (isFirstPurchase(log)) {
         item.firstPurchases += 1;
@@ -1207,13 +1239,25 @@ function groupDimension(logs, keyFn) {
   return Array.from(map.values()).sort((a, b) => b.sent - a.sent);
 }
 
+function averageMoneyText(valueByCurrency, countByCurrency) {
+  if (!valueByCurrency || valueByCurrency.size === 0) return money(0);
+  return Array.from(valueByCurrency.entries())
+    .filter(([, value]) => n(value) !== 0)
+    .map(([currency, value]) => money(value / Math.max(1, countByCurrency?.get(currency) || 0), currency))
+    .join(' / ') || money(0);
+}
+
+function purchaseMoney(log) {
+  if (!isPurchase(log)) return '-';
+  return money(log.value || extractCustomData(log).value, currencyKey(log));
+}
+
 function buildEventDetails(logs) {
   return groupLogs(logs, (log) => log.event_name || '-').map((event) => {
     const eventLogs = logs.filter((log) => (log.event_name || '-') === event.name);
     const purchaseLogs = event.name === 'Purchase' ? eventLogs : [];
     const firstPurchases = purchaseLogs.filter(isFirstPurchase);
     const returning = purchaseLogs.filter((log) => !isFirstPurchase(log));
-    const totalDeposit = purchaseLogs.reduce((sum, log) => sum + n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount), 0);
     return {
       ...event,
       logs: eventLogs,
@@ -1221,52 +1265,8 @@ function buildEventDetails(logs) {
       refs: groupLogs(eventLogs, logRefKey),
       firstPurchases: firstPurchases.length,
       returningPurchases: returning.length,
-      avgValue: purchaseLogs.length ? event.value / purchaseLogs.length : 0,
-      totalDeposit,
     };
   });
-}
-
-function renderPurchaseInsights(logs) {
-  const purchaseLogs = logs.filter(isPurchase);
-  if (!purchaseLogs.length) return '';
-
-  const firstLogs = purchaseLogs.filter(isFirstPurchase);
-  const returningLogs = purchaseLogs.filter((log) => !isFirstPurchase(log));
-  const firstUsers = new Set(firstLogs.map(identityKey).filter(Boolean));
-  const returningUsers = new Set(returningLogs.map(identityKey).filter(Boolean));
-  const totalValue = purchaseLogs.reduce((sum, log) => sum + n(log.value || extractCustomData(log).value), 0);
-  const totalDeposit = purchaseLogs.reduce((sum, log) => sum + n(log.total_deposit_amount || extractCustomData(log).total_deposit_amount), 0);
-  const avgValue = purchaseLogs.length ? totalValue / purchaseLogs.length : 0;
-
-  return `
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <strong>Phân tích Purchase</strong>
-          <span>Tách nạp mới/nạp cũ theo is_first_purchase và user_id trong payload.</span>
-        </div>
-      </div>
-      <div class="event-metrics purchase-metrics">
-        <div><span>Purchase gửi</span><strong>${fmt(purchaseLogs.length)}</strong></div>
-        <div><span>Purchase thành công</span><strong>${fmt(purchaseLogs.filter((log) => log.meta_status === 'received').length)}</strong></div>
-        <div><span>User nạp mới</span><strong>${fmt(firstUsers.size || firstLogs.length)}</strong></div>
-        <div><span>Lượt nạp mới</span><strong>${fmt(firstLogs.length)}</strong></div>
-        <div><span>User nạp cũ</span><strong>${fmt(returningUsers.size || returningLogs.length)}</strong></div>
-        <div><span>Lượt nạp cũ</span><strong>${fmt(returningLogs.length)}</strong></div>
-        <div><span>Tổng value</span><strong>${money(totalValue)}</strong></div>
-        <div><span>Giá trị TB</span><strong>${money(avgValue)}</strong></div>
-        <div><span>Tổng deposit</span><strong>${money(totalDeposit)}</strong></div>
-      </div>
-      <div class="breakdown-grid">
-        ${renderPurchaseDimensionTable('Purchase theo Ref', groupDimension(purchaseLogs, logRefKey))}
-        ${renderPurchaseDimensionTable('Purchase theo Campaign', groupDimension(purchaseLogs, campaignKey))}
-        ${renderPurchaseDimensionTable('Purchase theo Channel', groupDimension(purchaseLogs, (log) => customValue(log, 'channel')))}
-        ${renderPurchaseDimensionTable('Purchase theo Platform', groupDimension(purchaseLogs, (log) => customValue(log, 'platform')))}
-        ${renderPurchaseDimensionTable('Purchase theo VIP', groupDimension(purchaseLogs, (log) => customValue(log, 'vip')))}
-      </div>
-    </section>
-  `;
 }
 
 function renderParameterBreakdowns(logs) {
@@ -1312,34 +1312,7 @@ function renderDimensionTable(title, rows) {
                 <td>${fmt(row.users.size)}</td>
                 <td>${fmt(row.purchaseEvents)}</td>
                 <td>${fmt(row.firstUsers.size || row.firstPurchases)}</td>
-                <td>${row.purchaseEvents ? money(row.value) : '-'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function renderPurchaseDimensionTable(title, rows) {
-  return `
-    <div class="dimension-card">
-      <strong>${escapeHtml(title)}</strong>
-      <div class="table-wrap compact-table">
-        <table>
-          <thead><tr><th>Giá trị</th><th>Purchase</th><th>Thành công</th><th>User mới</th><th>Lượt mới</th><th>Lượt cũ</th><th>Value</th><th>Deposit</th></tr></thead>
-          <tbody>
-            ${rows.slice(0, 12).map((row) => `
-              <tr>
-                <td class="clip">${escapeHtml(row.name)}</td>
-                <td>${fmt(row.purchaseEvents)}</td>
-                <td>${fmt(row.received)}</td>
-                <td>${fmt(row.firstUsers.size || row.firstPurchases)}</td>
-                <td>${fmt(row.firstPurchases)}</td>
-                <td>${fmt(row.returningPurchases)}</td>
-                <td>${money(row.value)}</td>
-                <td>${money(row.deposit)}</td>
+                <td>${row.purchaseEvents ? moneyMapText(row.valueByCurrency) : '-'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1371,7 +1344,7 @@ function renderEventDimensionTable(title, rows, includeValue = false) {
               <td>${fmt(row.received)}</td>
               <td>${fmt(row.sent - row.received)}</td>
               <td>${pctText(pct(row.errors, row.sent))}</td>
-              ${includeValue ? `<td>${money(row.value)}</td>` : ''}
+              ${includeValue ? `<td>${moneyMapText(row.valueByCurrency)}</td>` : ''}
             </tr>
           `).join('')}
         </tbody>
@@ -1397,16 +1370,15 @@ function renderEventSections(events) {
           <div class="event-metrics">
             <div><span>Unique users</span><strong>${fmt(event.users.size)}</strong></div>
             ${event.name === 'Purchase' ? `
-              <div><span>Tổng value</span><strong>${money(event.value)}</strong></div>
+              <div><span>Tổng value</span><strong>${moneyMapText(event.valueByCurrency)}</strong></div>
               <div><span>Nạp mới</span><strong>${fmt(event.firstPurchases)}</strong></div>
               <div><span>Nạp cũ</span><strong>${fmt(event.returningPurchases)}</strong></div>
-              <div><span>Giá trị TB</span><strong>${money(event.avgValue)}</strong></div>
-              <div><span>Tổng deposit</span><strong>${money(event.totalDeposit)}</strong></div>
+              <div><span>Giá trị TB</span><strong>${averageMoneyText(event.valueByCurrency, event.purchaseCountByCurrency)}</strong></div>
             ` : ''}
           </div>
           <div class="table-wrap campaign-table">
             <table>
-              <thead><tr><th>Campaign ID</th><th>Sự kiện gửi</th><th>Meta nhận thành công</th><th>Chênh lệch</th><th>% lỗi</th><th>Value</th><th>Biểu đồ</th></tr></thead>
+              <thead><tr><th>Campaign ID</th><th>Sự kiện gửi</th><th>Meta nhận thành công</th><th>Chênh lệch</th><th>% lỗi</th>${event.name === 'Purchase' ? '<th>Value</th>' : ''}<th>Biểu đồ</th></tr></thead>
               <tbody>
                 ${event.campaigns.slice(0, 20).map((campaign) => `
                   <tr>
@@ -1415,7 +1387,7 @@ function renderEventSections(events) {
                     <td>${fmt(campaign.received)}</td>
                     <td>${fmt(campaign.sent - campaign.received)}</td>
                     <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
-                    <td>${money(campaign.value)}</td>
+                    ${event.name === 'Purchase' ? `<td>${moneyMapText(campaign.valueByCurrency)}</td>` : ''}
                     <td>${sparkline(event.logs.filter((log) => campaignKey(log) === campaign.name), campaign.name, true)}</td>
                   </tr>
                 `).join('')}
@@ -1513,7 +1485,7 @@ function renderLogsTable(logs) {
               <td>${escapeHtml(text(log.event_name))}</td>
               <td>${escapeHtml(log.market_key)}:${escapeHtml(log.product_key)}</td>
               <td>${escapeHtml(text(log.username || log.user_id))}</td>
-              <td>${money(log.value, log.currency)}</td>
+              <td>${purchaseMoney(log)}</td>
               <td><em class="badge ${classForStatus(log.meta_status)}">${escapeHtml(statusLabel(log.meta_status))}</em></td>
               <td class="clip">${escapeHtml(text(log.fbtrace_id))}</td>
             </tr>
@@ -2295,8 +2267,8 @@ function showLogModal(log) {
           ['Pub ID', log.pub_id],
           ['Channel', log.channel],
           ['Platform', log.platform],
-          ['Value', money(log.value, log.currency)],
-          ['Total deposit', money(log.total_deposit_amount || extractCustomData(log).total_deposit_amount, log.currency)],
+          ['Value', purchaseMoney(log)],
+          ['Tích lũy user', isPurchase(log) ? money(log.total_deposit_amount || extractCustomData(log).total_deposit_amount, currencyKey(log)) : '-'],
           ['Meta status', log.meta_status],
           ['Events received', log.events_received],
           ['FB trace', log.fbtrace_id],
