@@ -1077,13 +1077,11 @@ function renderProductDetail(marketKey, productKey) {
       <div class="chart-tooltip" id="chart-tooltip"></div>
     </section>
 
-    ${renderParameterBreakdowns(logs)}
-
     <section class="panel">
       <div class="panel-head">
         <div>
-          <strong>Phân loại theo Event Name và Campaign</strong>
-          <span>Campaign lấy từ utm_campaign. Ref chỉ dùng ở bộ lọc nguồn, không trộn vào campaign.</span>
+          <strong>Rà soát theo Event Name</strong>
+          <span>Vào từng event để xem campaign, ref, ad set, ad, channel, platform. Purchase mới có value.</span>
         </div>
       </div>
       ${renderEventSections(events)}
@@ -1263,6 +1261,15 @@ function buildEventDetails(logs) {
       logs: eventLogs,
       campaigns: groupLogs(eventLogs, campaignKey),
       refs: groupLogs(eventLogs, logRefKey),
+      dimensions: [
+        ['Campaign', groupLogs(eventLogs, campaignKey)],
+        ['Ref', groupLogs(eventLogs, logRefKey)],
+        ['Ad set', groupLogs(eventLogs, (log) => customValue(log, 'utm_content'))],
+        ['Ad', groupLogs(eventLogs, (log) => customValue(log, 'utm_term'))],
+        ['Channel', groupLogs(eventLogs, (log) => customValue(log, 'channel'))],
+        ['Platform', groupLogs(eventLogs, (log) => customValue(log, 'platform'))],
+        ['VIP', groupLogs(eventLogs, (log) => customValue(log, 'vip'))],
+      ],
       firstPurchases: firstPurchases.length,
       returningPurchases: returning.length,
     };
@@ -1353,6 +1360,40 @@ function renderEventDimensionTable(title, rows, includeValue = false) {
   `;
 }
 
+function renderEventDimensionCard(title, rows, includeValue = false) {
+  return `
+    <div class="dimension-card event-dimension-card">
+      <strong>${escapeHtml(title)}</strong>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Giá trị</th>
+              <th>Gửi</th>
+              <th>Thành công</th>
+              <th>Chênh lệch</th>
+              <th>% lỗi</th>
+              ${includeValue ? '<th>Value</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.slice(0, 12).map((row) => `
+              <tr>
+                <td class="clip">${escapeHtml(row.name)}</td>
+                <td>${fmt(row.sent)}</td>
+                <td>${fmt(row.received)}</td>
+                <td>${fmt(row.sent - row.received)}</td>
+                <td>${pctText(pct(row.errors, row.sent))}</td>
+                ${includeValue ? `<td>${moneyMapText(row.valueByCurrency)}</td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function renderEventSections(events) {
   if (!events.length) return emptyState('Không có event trong khoảng lọc');
 
@@ -1376,25 +1417,11 @@ function renderEventSections(events) {
               <div><span>Giá trị TB</span><strong>${averageMoneyText(event.valueByCurrency, event.purchaseCountByCurrency)}</strong></div>
             ` : ''}
           </div>
-          <div class="table-wrap campaign-table">
-            <table>
-              <thead><tr><th>Campaign ID</th><th>Sự kiện gửi</th><th>Meta nhận thành công</th><th>Chênh lệch</th><th>% lỗi</th>${event.name === 'Purchase' ? '<th>Value</th>' : ''}<th>Biểu đồ</th></tr></thead>
-              <tbody>
-                ${event.campaigns.slice(0, 20).map((campaign) => `
-                  <tr>
-                    <td class="clip ${campaign.name === 'Không có campaign' ? 'muted-cell' : ''}">${escapeHtml(campaign.name)}</td>
-                    <td>${fmt(campaign.sent)}</td>
-                    <td>${fmt(campaign.received)}</td>
-                    <td>${fmt(campaign.sent - campaign.received)}</td>
-                    <td>${pctText(pct(campaign.errors, campaign.sent))}</td>
-                    ${event.name === 'Purchase' ? `<td>${moneyMapText(campaign.valueByCurrency)}</td>` : ''}
-                    <td>${sparkline(event.logs.filter((log) => campaignKey(log) === campaign.name), campaign.name, true)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+          <div class="event-dimension-grid">
+            ${event.dimensions.map(([title, rows]) =>
+              renderEventDimensionCard(title, rows, event.name === 'Purchase')
+            ).join('')}
           </div>
-          ${renderEventDimensionTable('Ref', event.refs, event.name === 'Purchase')}
         </article>
       `).join('')}
     </div>
