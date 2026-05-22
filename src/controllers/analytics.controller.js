@@ -91,6 +91,23 @@ function parseWindow(query) {
   };
 }
 
+function parseOptionalWindow(query) {
+  const parsedTo = parseDateOnly(query.date_to, 'date_to');
+  if (parsedTo?.error) return { error: parsedTo.error };
+
+  const parsedFrom = parseDateOnly(query.date_from, 'date_from');
+  if (parsedFrom?.error) return { error: parsedFrom.error };
+
+  if (parsedFrom?.date && parsedTo?.date && parsedFrom.date > parsedTo.date) {
+    return { error: 'date_from must be before or equal to date_to.' };
+  }
+
+  return {
+    dateFrom: parsedFrom?.date ? parsedFrom.date.toISOString().slice(0, 10) : '',
+    dateTo: parsedTo?.date ? parsedTo.date.toISOString().slice(0, 10) : '',
+  };
+}
+
 function validateSegmentKey(value) {
   return /^[a-zA-Z0-9_-]{2,64}$/.test(value);
 }
