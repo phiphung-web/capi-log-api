@@ -270,9 +270,10 @@ async function productCompare(req, res) {
         COUNT(l.id) FILTER (WHERE l.meta_status = 'error')::integer AS error_events
       FROM days d
       LEFT JOIN capi_event_logs l
-        ON l.created_at::date = d.metric_date
-        AND l.market_key = $1
+        ON l.market_key = $1
         AND l.product_key = $2
+        AND l.created_at >= d.metric_date::timestamptz
+        AND l.created_at < (d.metric_date::timestamptz + INTERVAL '1 day')
       GROUP BY d.period, d.day_index, d.metric_date
     )
     SELECT * FROM events ORDER BY period, day_index
@@ -482,7 +483,8 @@ async function productsCompare(req, res) {
     LEFT JOIN capi_event_logs l
       ON l.market_key = ap.market_key
       AND l.product_key = ap.product_key
-      AND l.created_at::date = d.metric_date
+      AND l.created_at >= d.metric_date::timestamptz
+      AND l.created_at < (d.metric_date::timestamptz + INTERVAL '1 day')
     GROUP BY ap.market_key, ap.product_key, ap.display_order, d.metric_date
     ORDER BY ap.display_order, d.metric_date
   `;
