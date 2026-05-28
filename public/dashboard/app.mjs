@@ -806,6 +806,7 @@ function adminTabLabel(tab) {
     users: 'User',
     markets: 'Thị trường',
     products: 'Sản phẩm',
+    system: 'Tình trạng hệ thống',
     maintenance: 'Maintenance',
   }[tab] || 'User';
 }
@@ -872,7 +873,6 @@ function renderHome() {
   const latest = state.logs[0]?.created_at;
   const total = n(range.total_events || range.sent_events);
   const errorRate = pct(range.error_events || range.error_logs, total);
-  const adminSystemStatus = isAdmin() ? renderAdminSystemStatus() : '';
 
   return `
     <section class="home-welcome panel">
@@ -891,7 +891,6 @@ function renderHome() {
       ${kpiCard('Thị trường hoạt động', activeMarkets, `${fmt(state.markets.length)} thị trường được phép xem`)}
       ${kpiCard('Sản phẩm hoạt động', activeProducts, `${fmt(state.products.length)} sản phẩm được phép xem`)}
     </div>
-    ${adminSystemStatus}
   `;
 }
 
@@ -2224,6 +2223,7 @@ function renderAdmin() {
     ['users', 'User'],
     ['markets', 'Thị trường'],
     ['products', 'Sản phẩm'],
+    ['system', 'Tình trạng hệ thống'],
     ['maintenance', 'Maintenance'],
   ];
 
@@ -2239,6 +2239,7 @@ function renderAdminTab() {
   if (state.admin.tab === 'users') return renderAdminUsers();
   if (state.admin.tab === 'markets') return renderAdminMarkets();
   if (state.admin.tab === 'products') return renderAdminProducts();
+  if (state.admin.tab === 'system') return renderAdminSystemStatus();
   return renderMaintenance();
 }
 
