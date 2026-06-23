@@ -32,7 +32,19 @@ DB_PORT=5432
 DB_NAME=capi_log
 DB_USER=capi_user
 DB_PASSWORD=CHANGE_DATABASE_PASSWORD
+
+# Optional: send OTP log notifications to Telegram.
+TELEGRAM_BOT_TOKEN=CHANGE_TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID=CHANGE_TELEGRAM_CHAT_ID
+# Optional allowlist. If empty, only OTP-looking events/payloads are sent.
+TELEGRAM_NOTIFY_EVENTS=OtpReceived,BalanceChanged
 ```
+
+### Telegram OTP notifications
+
+When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are configured, the API sends a Telegram `sendMessage` notification after an OTP log is saved successfully. By default, the notifier only sends events that look like OTP payloads: the `event_name` contains `otp`, or the payload includes fields such as `otp`, `otp_code`, `code`, `verification_code`, or OTP text in `message`/`sms_message`/`content`.
+
+If you also need the same notification path for existing balance notifications, set `TELEGRAM_NOTIFY_EVENTS` to a comma-separated allowlist of event names, for example `OtpReceived,BalanceChanged`. When this allowlist is set, only those exact event names are sent to Telegram.
 
 ## 3. Create PostgreSQL database
 

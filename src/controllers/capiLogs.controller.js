@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { notifyTelegramForLog } = require('../utils/telegramNotifier');
 
 function getMetaEvent(body) {
   const event = body?.request?.data?.[0] || body?.meta_request_payload?.data?.[0];
@@ -565,6 +566,16 @@ async function createLog(req, res) {
 
     if (isNewMarketKey || isNewProductKey) {
       data.notice = 'New market/product key detected.';
+    }
+
+    try {
+      const telegramResult = await notifyTelegramForLog(sourceBody, data);
+      if (!telegramResult.skipped) {
+        data.telegram_notification = 'sent';
+      }
+    } catch (telegramError) {
+      data.telegram_notification = 'failed';
+      console.warn('Failed to send Telegram notification for CAPI log:', telegramError);
     }
 
     return res.status(201).json({
